@@ -93,6 +93,11 @@
   .restock{font-size:12px;color:var(--muted);margin-bottom:10px}
   .toast{position:fixed;left:50%;bottom:180px;transform:translateX(-50%);background:#1d3d29;border:1px solid var(--line);padding:10px 18px;border-radius:12px;font-size:14px;opacity:0;transition:opacity .3s,bottom .3s;pointer-events:none;z-index:40;box-shadow:0 8px 24px rgba(0,0,0,.4)}
   .toast.show{opacity:1;bottom:192px}
+  /* Restock notification banner */
+  #notif{position:fixed;top:64px;left:50%;transform:translateX(-50%) translateY(-18px);background:rgba(29,61,41,.97);border:1px solid var(--gold);border-radius:14px;padding:11px 18px;font-size:14px;font-weight:600;z-index:25;box-shadow:0 12px 32px rgba(0,0,0,.5);opacity:0;pointer-events:none;transition:opacity .35s,transform .35s;max-width:92vw;text-align:center;cursor:pointer;display:flex;align-items:center;gap:8px}
+  #notif.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
+  #notif b{color:var(--gold)}
+  #notif .tap{font-size:11px;color:var(--muted);font-weight:600}
   .tiny{font-size:11px;color:var(--muted);text-align:center;margin-top:10px}
   .tiny a{color:var(--muted);cursor:pointer;text-decoration:underline}
 </style>
@@ -111,6 +116,8 @@
     <div class="chip">🌾 <span id="hudCrops">0</span> crops</div>
   </div>
 </div>
+
+<div id="notif"></div>
 
 <div id="prompt"></div>
 
@@ -421,13 +428,14 @@ function handlePlot(i){
   if(pl.seedId){
     const s=SEED_MAP[pl.seedId];
     if(pl.fruits>0){
-      // harvest every ripe fruit; each picked slot immediately starts regrowing
-      const n=pl.fruits; pl.fruits=0;
-      state.cropInv[s.id]=(state.cropInv[s.id]||0)+n;
-      state.xp += Math.round(s.sell*n/10);
-      updatePlots();   // queue the 5-min regrow timers for the emptied slots
-      toast(`Harvested ${n}× ${s.emoji} ${s.name}!`);
-      log(`Harvested <b>${n}× ${s.name}</b> (regrows in 5m)`);
+      // harvest a single fruit; that one slot immediately starts regrowing (5m)
+      pl.fruits -= 1;
+      state.cropInv[s.id]=(state.cropInv[s.id]||0)+1;
+      state.xp += Math.round(s.sell/10);
+      updatePlots();   // queue the 5-min regrow timer for the emptied slot
+      const leftTxt = pl.fruits>0 ? ` · ${pl.fruits} left` : '';
+      toast(`Harvested 1 ${s.emoji} ${s.name}${leftTxt}`);
+      log(`Harvested <b>1 ${s.name}</b> (regrows in 5m)`);
     } else {
       const next=pl.timers.reduce((m,t)=>Math.min(m,t.at), Infinity);
       const left=(next-now())/1000;
@@ -464,7 +472,13 @@ function maybeRestock(){
   if(now()-state.lastRestock>=RESTOCK_MS){
     rollStock();
     const rare=Object.keys(state.shop).filter(id=>RARITY_ORDER[SEED_MAP[id].rarity]>=3);
-    if(rare.length) log(`✨ Shop restocked — rare find: <b>${rare.map(id=>SEED_MAP[id].name).join(', ')}</b>!`);
+    if(rare.length){
+      log(`✨ Shop restocked — rare find: <b>${rare.map(id=>SEED_MAP[id].name).join(', ')}</b>!`);
+      notify(`✨ <b>${rare.map(id=>SEED_MAP[id].name).join(', ')}</b> in stock! <span class="tap">tap to shop</span>`);
+    } else {
+      log('🔄 Seed Shop restocked.');
+      notify(`🔄 <b>Seed Shop restocked!</b> <span class="tap">tap to shop</span>`);
+    }
     if(document.getElementById('seedOverlay').classList.contains('show')) renderShop();
   }
 }
@@ -711,7 +725,7 @@ function updatePrompt(near){
     if(pl.seedId){
       const s=SEED_MAP[pl.seedId];
       if((pl.fruits||0)>0){
-        txt = `<span class="key">E</span> Harvest <b>${s.name}</b> ×${pl.fruits}`;
+        txt = `<span class="key">E</span> Harvest <b>${s.name}</b> — ${pl.fruits} ripe`;
       } else {
         const next=pl.timers.reduce((m,t)=>Math.min(m,t.at), Infinity);
         txt = `${s.emoji} ${s.name} — next fruit in ${fmtTime((next-now())/1000)}`;
@@ -727,6 +741,14 @@ function updatePrompt(near){
 // ---- Toast & log ----
 let toastTimer;
 function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'),1500); }
+let notifTimer;
+function notify(html){
+  const n=document.getElementById('notif');
+  n.innerHTML=html;
+  n.classList.add('show');
+  clearTimeout(notifTimer);
+  notifTimer=setTimeout(()=>n.classList.remove('show'), 6000);
+}
 function log(m){ logs.unshift({t:now(), msg:m}); logs=logs.slice(0,120); save(); if(document.getElementById('historyOverlay').classList.contains('show')) renderHistory(); }
 
 function timeAgo(t){
@@ -778,6 +800,7 @@ function buildSetup(){
 document.getElementById('forceRestock').onclick=forceRestock;
 document.getElementById('sellAll').onclick=sellAll;
 document.getElementById('histBtn').onclick=openHistory;
+document.getElementById('notif').onclick=()=>{ document.getElementById('notif').classList.remove('show'); if(state.setupDone) openSeedShop(); };
 document.getElementById('clearHist').onclick=()=>{ if(confirm('Clear your history? (progress is kept)')){ logs=[]; save(); renderHistory(); } };
 document.getElementById('resetBtn').onclick=()=>{ if(confirm('Reset all progress?')){ localStorage.removeItem('sproutWorld'); location.reload(); } };
 
