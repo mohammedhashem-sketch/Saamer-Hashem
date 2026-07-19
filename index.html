@@ -146,7 +146,7 @@
   <div class="modal">
     <span class="x" data-close="seedOverlay">✕</span>
     <h2>🌱 Seed Shop</h2>
-    <p class="sub">Rarer seeds have a lower chance to be in stock. The shop re-rolls its stock every 45s.</p>
+    <p class="sub">Rarer seeds have a lower chance to be in stock. The shop re-rolls its stock every 4 minutes.</p>
     <div class="restock">Restock in <b><span id="restockIn">--</span>s</b></div>
     <div id="shopList"></div>
     <div class="foot"><button class="btn" id="forceRestock" style="flex:1">🔄 Restock Now (5 🪙)</button></div>
@@ -195,6 +195,7 @@ const NAME_COLORS = ['#5be08a','#4aa3ff','#ff9f38','#ff4d7d','#b56cff','#ffd54a'
 
 // ---- World layout ----
 const TS = 48;                 // tile size (px)
+const RESTOCK_MS = 4*60*1000;  // shop restocks every 4 minutes
 const COLS = 30, ROWS = 22;
 const WORLD_W = COLS*TS, WORLD_H = ROWS*TS;
 
@@ -386,7 +387,7 @@ function rollStock(){
   state.shop=shop; state.lastRestock=now();
 }
 function maybeRestock(){
-  if(now()-state.lastRestock>=45000){
+  if(now()-state.lastRestock>=RESTOCK_MS){
     rollStock();
     if(document.getElementById('seedOverlay').classList.contains('show')) renderShop();
   }
@@ -674,8 +675,9 @@ renderHUD(); renderHotbar();
 // restock countdown display
 setInterval(()=>{
   maybeRestock();
-  const rem=Math.max(0,Math.ceil(45-(now()-state.lastRestock)/1000));
-  const el=document.getElementById('restockIn'); if(el) el.textContent=rem;
+  const rem=Math.max(0,Math.ceil((RESTOCK_MS-(now()-state.lastRestock))/1000));
+  const mm=Math.floor(rem/60), ss=String(rem%60).padStart(2,'0');
+  const el=document.getElementById('restockIn'); if(el) el.textContent=`${mm}:${ss}`;
 },400);
 
 // ---- Main loop ----
