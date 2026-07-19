@@ -78,6 +78,7 @@
   .field{margin-bottom:14px}
   .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
   .field input{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:10px 12px;font-size:15px}
+  .codebox{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:10px 12px;font-size:12px;font-family:monospace;resize:vertical;word-break:break-all}
   .avatars{display:flex;gap:8px;flex-wrap:wrap}
   .av{width:52px;height:52px;border-radius:12px;background:var(--panel2);border:2px solid var(--line);font-size:28px;display:flex;align-items:center;justify-content:center;cursor:pointer}
   .av.sel{border-color:var(--gold);box-shadow:0 0 0 2px var(--gold) inset}
@@ -148,6 +149,7 @@
     <div class="chip name" id="hudName">🧑‍🌾 Farmer</div>
     <div class="chip">🏆 Lv <span id="hudLevel">1</span></div>
     <div class="chip click" id="histBtn">📜 History</div>
+    <div class="chip click" id="saveBtn">💾 Save</div>
   </div>
   <div class="grp">
     <div class="chip click cur" id="curBtn">💱 <span id="hudCur">USD</span></div>
@@ -218,6 +220,26 @@
     <div id="marketList"></div>
     <div class="foot"><button class="btn sell" id="sellAll" style="flex:1">💰 Sell Everything</button></div>
     <p class="tiny">Progress saves automatically · <a id="resetBtn">reset game</a></p>
+  </div>
+</div>
+
+<!-- Save & Backup -->
+<div class="overlay" id="saveOverlay">
+  <div class="modal">
+    <span class="x" data-close="saveOverlay">✕</span>
+    <h2>💾 Save &amp; Backup</h2>
+    <p class="sub">Your game saves by itself. But if you're on the preview link and it ever forgets your progress, use a <b>save code</b> to keep it safe — it works on any link and any device!</p>
+    <div class="disclaimer" id="saveWarn" style="display:none">⚠️ This link can't save on its own. Copy your save code below and keep it somewhere safe (like a note), then paste it back to continue!</div>
+    <div class="field">
+      <label>1 · Your save code — copy &amp; keep it safe</label>
+      <textarea id="saveCodeOut" class="codebox" rows="4" readonly></textarea>
+      <button class="btn" id="copySave" style="width:100%;margin-top:6px">📋 Copy my save code</button>
+    </div>
+    <div class="field">
+      <label>2 · Paste a save code to load it</label>
+      <textarea id="saveCodeIn" class="codebox" rows="4" placeholder="Paste your saved code here…"></textarea>
+      <button class="btn" id="loadSave" style="width:100%;margin-top:6px">📥 Load this save</button>
+    </div>
   </div>
 </div>
 
@@ -1113,6 +1135,27 @@ function openHistory(){ renderHistory(); show('historyOverlay'); }
 function save(){ try{ localStorage.setItem('sproutWorld', JSON.stringify({...state, logs})); }catch(e){} }
 function load(){ try{ const d=JSON.parse(localStorage.getItem('sproutWorld')); if(d&&d.logs) logs=d.logs; return d; }catch(e){ return null; } }
 
+// Is browser storage even usable here? (sandboxed previews may block it)
+let storageOk=true;
+try{ localStorage.setItem('__t','1'); localStorage.removeItem('__t'); }catch(e){ storageOk=false; }
+
+// ---- Manual save codes (work on ANY link, even sandboxed ones) ----
+function exportCode(){ try{ return btoa(unescape(encodeURIComponent(JSON.stringify({...state, logs})))); }catch(e){ return ''; } }
+function importCode(code){
+  const d=JSON.parse(decodeURIComponent(escape(atob((code||'').trim()))));
+  if(!d || !d.player) throw new Error('bad code');
+  d.plots = PLOTS.map((p,i)=>normalizePlot(p, d.plots && d.plots[i]));
+  if(!d.gearShop || !Object.keys(d.gearShop).length){ d.gearShop={}; }
+  if(d.tool!=='shovel' && d.tool!=='can') d.tool='none';
+  if(typeof d.wateringUses!=='number') d.wateringUses=0;
+  logs = Array.isArray(d.logs)? d.logs : [];
+  state = d;
+  save(); renderHUD(); renderHotbar();
+  document.getElementById('saveOverlay').classList.remove('show');
+  toast('✅ Save loaded!');
+  log('Loaded a save code.');
+}
+
 // ---- Setup modal ----
 function buildSetup(){
   const ap=document.getElementById('avatarPick'); ap.innerHTML='';
@@ -1137,6 +1180,17 @@ function buildSetup(){
 document.getElementById('forceRestock').onclick=forceRestock;
 document.getElementById('sellAll').onclick=sellAll;
 document.getElementById('histBtn').onclick=openHistory;
+document.getElementById('saveBtn').onclick=()=>{ if(!state.setupDone) return; document.getElementById('saveCodeOut').value=exportCode(); document.getElementById('saveWarn').style.display=storageOk?'none':'block'; show('saveOverlay'); };
+document.getElementById('copySave').onclick=()=>{
+  const t=document.getElementById('saveCodeOut'); t.focus(); t.select();
+  try{ navigator.clipboard.writeText(t.value); }catch(e){}
+  try{ document.execCommand('copy'); }catch(e){}
+  toast('📋 Save code copied!');
+};
+document.getElementById('loadSave').onclick=()=>{
+  try{ importCode(document.getElementById('saveCodeIn').value); }
+  catch(e){ toast('Hmm, that code didn’t work.'); }
+};
 document.getElementById('leafBtn').onclick=()=>{ if(state.setupDone) openLeafShop(); };
 document.getElementById('curBtn').onclick=()=>{ if(state.setupDone) openCurrency(); };
 document.getElementById('notif').onclick=()=>{ document.getElementById('notif').classList.remove('show'); if(state.setupDone) openSeedShop(); };
@@ -1151,6 +1205,8 @@ if(typeof state.wateringUses!=='number') state.wateringUses=0;
 buildSetup();
 if(!state.setupDone) show('setupOverlay');
 renderHUD(); renderHotbar();
+// Warn once if this link can't save on its own (e.g. a sandboxed preview)
+if(!storageOk){ setTimeout(()=>notify('⚠️ This link can’t save by itself — use the <b>💾 Save</b> button to keep a save code!'), 1400); }
 
 // restock countdown + live sprinkler timer display
 let sprWasActive=false;
