@@ -2,8 +2,17 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Sprout Tycoon — Garden World</title>
+<!-- PWA: installable, offline, fullscreen on any platform -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#16301f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Sprout">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/png" href="icon-192.png">
 <style>
   :root{
     --bg:#0f1e13; --panel:#16301f; --panel2:#1d3d29; --line:#2a5238;
@@ -982,6 +991,12 @@ function frame(t){
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
+
+// Register the service worker for offline / installable PWA (only when served
+// over http(s); silently skips file:// and sandboxed embeds like previews).
+if('serviceWorker' in navigator && location.protocol.startsWith('http')){
+  window.addEventListener('load', ()=>{ navigator.serviceWorker.register('service-worker.js').catch(()=>{}); });
+}
 </script>
 </body>
 </html>

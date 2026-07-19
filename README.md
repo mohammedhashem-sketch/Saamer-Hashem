@@ -1,39 +1,84 @@
 # 🌱 Sprout Tycoon
 
-A browser-based garden growing game. Buy seeds, plant them, watch them grow in
-real time, and harvest crops for coins to buy rarer seeds.
+A standalone, walk-around garden game that runs in any web browser — on iPhone,
+iPad, Android, Windows, Mac, or Linux. No app store, no accounts, no internet
+required after the first load. Everything lives in one self-contained
+`index.html`, upgraded to an installable **PWA** (Progressive Web App).
 
-## Play
+## You do NOT need Claude to play it
 
-Open **`index.html`** in any web browser. That's it — no install, no build step.
-Your progress saves automatically in the browser.
+The Claude link is only convenient hosting. The game is a plain web app you fully
+own. Here are the ways to run it, from simplest to best — pick one.
+
+### Option 1 — Just open the file (zero setup)
+`index.html` is completely self-contained. Put it on any device and open it in a
+browser:
+- **Computer:** double-click `index.html`.
+- **iPhone/iPad/Android:** save the file (Files app, email, Drive, etc.) and tap
+  it to open in the browser.
+
+It runs fully offline and saves your progress in that browser. (This method
+can't add an app icon to your home screen — for that, use Option 2.)
+
+### Option 2 — Install it like a real app (recommended best practice)
+Host the files once on **GitHub Pages** (free, already set up in this repo), then
+install to your home screen. This gives you a fullscreen, offline, icon-on-the-
+homescreen app on every platform — the modern way to ship a game without an app
+store.
+
+**One-time hosting setup:**
+1. Merge this branch to `main` (or push these files to `main`).
+2. In GitHub: **Settings → Pages → Build and deployment → Source: “GitHub
+   Actions.”**
+3. The included workflow (`.github/workflows/pages.yml`) publishes the game to
+   `https://<your-username>.github.io/<repo>/` and redeploys on every push.
+
+**Install to home screen from that URL:**
+- **iPhone/iPad (Safari):** Share → **Add to Home Screen**.
+- **Android (Chrome):** ⋮ menu → **Install app** / **Add to Home Screen**.
+- **Desktop (Chrome/Edge):** the **Install** icon in the address bar.
+
+Once installed it launches fullscreen and works with no connection.
+
+### Option 3 — Any other static host
+Because it's just static files, you can drop the whole folder onto Netlify,
+Vercel, Cloudflare Pages, itch.io, or any web server and it works the same way.
+
+## What's in the repo
+
+| File | Purpose |
+| --- | --- |
+| `index.html` | The entire game (HTML + CSS + JS inlined). Runs by itself. |
+| `manifest.webmanifest` | PWA metadata (name, icons, colors, standalone display). |
+| `service-worker.js` | Offline caching so the app loads with no connection. |
+| `icon-192.png`, `icon-512.png` | Home-screen / install icons. |
+| `.github/workflows/pages.yml` | Auto-deploys to GitHub Pages. |
+
+> The extra files only power the “install like an app” experience. Opening
+> `index.html` on its own still works — the service worker simply stays dormant
+> until the game is served over http(s).
 
 ## How to play
 
-1. **Buy seeds** from the shop on the right.
-2. **Select** a seed in your inventory, then **click an empty plot** to plant it.
-3. Wait for it to grow (a progress bar fills up), then **click the ripe plot** to
-   harvest it for coins — or use **Harvest All**.
-4. Spend your coins on rarer, more valuable seeds.
+- **Move:** WASD / arrow keys, or the on-screen D-pad on touch devices.
+- **Interact:** press **E** / the on-screen button at shop doors and plots.
+- Buy seeds at the 🌱 **Seed Shop**, plant them, and harvest fruit one at a time.
+- Plants are **permanent** and regrow each picked fruit every 5 minutes.
+- Sell your crops at the 🏪 **Market**.
+- 📜 **History** logs everything; the shop restocks every 4 minutes with a pop-up.
+- 🍃 **Leaf Shop** is a *demo* premium store (no real money is charged) with a
+  country-currency picker.
 
-## The stock mechanic
+## Rarities, grow times & regrow capacity
 
-The shop **restocks every 45 seconds** and re-rolls its entire inventory. Each
-seed has its own chance to appear in stock — the rarer the seed, the lower the
-chance:
+| Rarity | Matures in | Fruit held (regrows 5m each) | Stock chance |
+| --- | --- | --- | --- |
+| Common | seconds | 3 | ~100% |
+| Rare | 10 min | 5 | 25–35% |
+| Epic | 30 min | 8 | ~10% |
+| Legendary | 1 hour | 4 | 1% |
+| Mythic | 2 hours | 🌹 1 · 🔥 2 | 0.1% |
+| Exclusive | 5 min | 6 | Leaf Shop only |
 
-| Rarity | Example | Stock chance |
-| --- | --- | --- |
-| Common | 🥕 Carrot, 🌾 Wheat | ~100% |
-| Rare | 🍓 Strawberry, 🌽 Corn | 25–35% |
-| Epic | 🍉 Watermelon, 🎃 Pumpkin | ~10% |
-| Legendary | 🍏 Golden Apple, 🐉 Dragon Fruit | **1%** |
-| Mythic | 🌹 Celestial Rose, 🔥 Phoenix Bloom | **0.1%** |
-
-So a mythic seed shows up in the shop only about 1 in 1000 restocks — keep
-checking back, or pay 5 coins to force an early restock and roll the dice. Rarer
-seeds cost more and take longer to grow, but sell for far more.
-
-Editing which seeds exist, their rarities, costs, grow times, and stock chances
-is easy — they all live in the `SEEDS` array at the top of the `<script>` in
-`index.html`.
+All seed stats live in the `SEEDS` array at the top of the `<script>` in
+`index.html` — easy to tweak.
