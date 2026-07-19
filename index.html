@@ -292,8 +292,8 @@ const SEEDS = [
   { id:'celestial', name:'Celestial Rose',emoji:'🌹', rarity:'mythic',    cost:100000, grow:7200,  sell:28000,    stockChance:0.001, cap:1 },
   { id:'phoenix',   name:'Phoenix Bloom', emoji:'🔥', rarity:'mythic',    cost:140000, grow:7200,  sell:40000,    stockChance:0.001, cap:2 },
   // Exclusive — never restock; buyable only with Leaf Coins in the Leaf Shop
-  { id:'rainbow',   name:'Rainbow Bloom',  emoji:'🌈', rarity:'exclusive', cost:0, grow:300,  sell:25000,  stockChance:0, cap:6, leafCost:25 },
-  { id:'starfruit', name:'Star Fruit',     emoji:'⭐', rarity:'exclusive', cost:0, grow:300,  sell:15000,  stockChance:0, cap:6, leafCost:12 },
+  { id:'rainbow',   name:'Rainbow Bloom',  emoji:'🌈', rarity:'exclusive', cost:0, grow:300,  sell:25000,  stockChance:0, cap:6, leafCost:250 },
+  { id:'starfruit', name:'Star Fruit',     emoji:'⭐', rarity:'exclusive', cost:0, grow:300,  sell:15000,  stockChance:0, cap:6, leafCost:150 },
 ];
 const REGROW_MS = 5*60*1000;   // each harvested fruit regrows in 5 minutes
 
@@ -723,6 +723,16 @@ function buyExclusive(id){
   log(`Bought exclusive <b>${s.name}</b> for ${s.leafCost} 🍃`);
   renderPremium(); renderHUD(); renderHotbar();
 }
+const ULTIMATE_COST = 500;   // Leaf Coins for one of every seed in the game
+function buyUltimatePack(){
+  if((state.leafCoins||0) < ULTIMATE_COST){ toast('Not enough Leaf Coins.'); return; }
+  state.leafCoins -= ULTIMATE_COST;
+  SEEDS.forEach(s=>{ state.seedInv[s.id]=(state.seedInv[s.id]||0)+1; });
+  if(!state.selectedSeed) state.selectedSeed=SEEDS[0].id;
+  toast(`🎁 Ultimate Seed Pack — one of EVERY seed!`);
+  log(`Bought the <b>Ultimate Seed Pack</b> (1 of every seed) for ${ULTIMATE_COST} 🍃`);
+  renderPremium(); renderHUD(); renderHotbar();
+}
 function renderPremium(){
   const pk=document.getElementById('packList'); pk.innerHTML='';
   LEAF_PACKS.forEach((p,i)=>{
@@ -735,6 +745,15 @@ function renderPremium(){
     pk.appendChild(d);
   });
   const ex=document.getElementById('exclusiveList'); ex.innerHTML='';
+  // Ultimate Seed Pack — one of every seed in the game
+  const upAfford=(state.leafCoins||0)>=ULTIMATE_COST;
+  const up=document.createElement('div'); up.className='pack best';
+  up.innerHTML=`<span class="best-tag">Everything!</span>
+    <span class="leafico">🎁</span>
+    <div><div class="amt">Ultimate Seed Pack</div><div class="sub3">One of EVERY seed — all ${SEEDS.length} types, even exclusives</div></div>
+    <button class="buyleaf" ${upAfford?'':'disabled'}>🍃 ${ULTIMATE_COST}</button>`;
+  up.querySelector('.buyleaf').onclick=()=>buyUltimatePack();
+  ex.appendChild(up);
   SEEDS.filter(s=>s.leafCost).forEach(s=>{
     const afford=(state.leafCoins||0)>=s.leafCost;
     const d=document.createElement('div'); d.className='row';
