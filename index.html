@@ -21,6 +21,13 @@
   .chip{background:rgba(22,48,31,.92);border:1px solid var(--line);border-radius:11px;padding:6px 12px;font-weight:700;font-size:14px;display:flex;align-items:center;gap:6px;backdrop-filter:blur(4px)}
   .chip.coins{color:var(--gold)}
   .chip.name{color:#bfe6c8}
+  .chip.click{pointer-events:auto;cursor:pointer}
+  .chip.click:active{background:rgba(47,125,74,.9)}
+
+  .histlist{max-height:52vh;overflow:auto;display:flex;flex-direction:column;gap:6px}
+  .hitem{display:flex;justify-content:space-between;gap:10px;padding:8px 10px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;font-size:13.5px;line-height:1.4}
+  .hitem b{color:var(--gold)}
+  .hitem .when{color:var(--muted);font-size:11px;white-space:nowrap;flex-shrink:0}
 
   /* Interaction prompt */
   #prompt{position:fixed;left:50%;bottom:120px;transform:translateX(-50%);background:rgba(15,30,19,.95);border:1px solid var(--gold);border-radius:12px;padding:9px 16px;font-size:14px;font-weight:600;z-index:11;display:none;box-shadow:0 6px 20px rgba(0,0,0,.4);text-align:center}
@@ -97,6 +104,7 @@
   <div class="grp">
     <div class="chip name" id="hudName">🧑‍🌾 Farmer</div>
     <div class="chip">🏆 Lv <span id="hudLevel">1</span></div>
+    <div class="chip click" id="histBtn">📜 History</div>
   </div>
   <div class="grp">
     <div class="chip coins">🪙 <span id="hudCoins">0</span></div>
@@ -165,6 +173,17 @@
   </div>
 </div>
 
+<!-- History -->
+<div class="overlay" id="historyOverlay">
+  <div class="modal">
+    <span class="x" data-close="historyOverlay">✕</span>
+    <h2>📜 Your History</h2>
+    <p class="sub">Everything you've done, newest first — saved automatically on this device.</p>
+    <div class="histlist" id="historyList"></div>
+    <div class="foot"><button class="btn" id="clearHist" style="flex:1">Clear history</button></div>
+  </div>
+</div>
+
 <script>
 /* ============================================================
    Sprout Tycoon — walk-around garden world
@@ -223,6 +242,7 @@ const TREES = [
 const TREE_R = 18;
 
 // ---- State ----
+let logs = [];   // declared before load() so load() can populate it safely
 let state = load() || {
   setupDone:false,
   player:{ x:WORLD_W*0.42, y:WORLD_H*0.55, name:'Farmer', avatar:'🧑‍🌾', color:'#5be08a' },
@@ -239,7 +259,6 @@ let state = load() || {
 state.plots = PLOTS.map((p,i)=>({x:p.x,y:p.y, seedId:state.plots[i]?.seedId||null, plantedAt:state.plots[i]?.plantedAt||0}));
 
 function now(){ return Date.now(); }
-let logs = [];
 
 // ---- Canvas setup ----
 const cv = document.getElementById('cv');
@@ -275,6 +294,7 @@ window.addEventListener('keydown', e=>{
   if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k)) e.preventDefault();
   keys[k]=true;
   if(k==='e' || k===' ') tryInteract();
+  if(k==='h') openHistory();
   if(k==='escape') closeAll();
   if(k>='1' && k<='9'){ selectSlot(parseInt(k)-1); }
 });
@@ -369,6 +389,7 @@ function handlePlot(i){
     state.seedInv[id]-=1; if(state.seedInv[id]<=0){ delete state.seedInv[id]; }
     pl.seedId=id; pl.plantedAt=now();
     toast(`Planted ${SEED_MAP[id].emoji} ${SEED_MAP[id].name}`);
+    log(`Planted a <b>${SEED_MAP[id].name}</b>`);
     if(!state.seedInv[id]) state.selectedSeed = Object.keys(state.seedInv)[0]||null;
   }
   renderHUD(); renderHotbar();
@@ -389,6 +410,8 @@ function rollStock(){
 function maybeRestock(){
   if(now()-state.lastRestock>=RESTOCK_MS){
     rollStock();
+    const rare=Object.keys(state.shop).filter(id=>RARITY_ORDER[SEED_MAP[id].rarity]>=3);
+    if(rare.length) log(`✨ Shop restocked — rare find: <b>${rare.map(id=>SEED_MAP[id].name).join(', ')}</b>!`);
     if(document.getElementById('seedOverlay').classList.contains('show')) renderShop();
   }
 }
@@ -402,17 +425,19 @@ function buy(id){
   state.seedInv[id]=(state.seedInv[id]||0)+1;
   if(!state.selectedSeed) state.selectedSeed=id;
   toast(`Bought ${s.emoji} ${s.name}`);
+  log(`Bought a <b>${s.name}</b> seed for ${s.cost} 🪙`);
   renderShop(); renderHUD(); renderHotbar();
 }
 function forceRestock(){
   if(state.coins<5){ toast('Need 5 coins.'); return; }
-  state.coins-=5; rollStock(); renderShop(); renderHUD();
+  state.coins-=5; rollStock(); log('Paid 5 🪙 to restock the Seed Shop.'); renderShop(); renderHUD();
 }
 function sellCrop(id){
   const n=state.cropInv[id]; if(!n) return;
   const s=SEED_MAP[id];
   state.coins += s.sell*n; delete state.cropInv[id];
   toast(`Sold ${n}× ${s.emoji} for ${s.sell*n} 🪙`);
+  log(`Sold ${n}× <b>${s.name}</b> for +${s.sell*n} 🪙`);
   renderMarket(); renderHUD();
 }
 function sellAll(){
@@ -473,9 +498,12 @@ function renderMarket(){
 // ---- HUD & hotbar ----
 function levelFromXp(xp){ return 1+Math.floor(Math.sqrt(xp/50)); }
 function renderHUD(){
+  const lvl = levelFromXp(state.xp);
+  if(state.lastLevel && lvl>state.lastLevel){ log(`🏆 Reached <b>Level ${lvl}</b>!`); }
+  state.lastLevel = lvl;
   document.getElementById('hudName').textContent = state.player.avatar+' '+state.player.name;
   document.getElementById('hudCoins').textContent = Math.floor(state.coins).toLocaleString();
-  document.getElementById('hudLevel').textContent = levelFromXp(state.xp);
+  document.getElementById('hudLevel').textContent = lvl;
   document.getElementById('hudCrops').textContent = Object.values(state.cropInv).reduce((a,b)=>a+b,0);
   save();
 }
@@ -636,7 +664,28 @@ function updatePrompt(near){
 // ---- Toast & log ----
 let toastTimer;
 function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'),1500); }
-function log(m){ logs.unshift(m); logs=logs.slice(0,30); }
+function log(m){ logs.unshift({t:now(), msg:m}); logs=logs.slice(0,120); save(); if(document.getElementById('historyOverlay').classList.contains('show')) renderHistory(); }
+
+function timeAgo(t){
+  const s=Math.floor((now()-t)/1000);
+  if(s<10) return 'just now';
+  if(s<60) return s+'s ago';
+  const m=Math.floor(s/60); if(m<60) return m+'m ago';
+  const h=Math.floor(m/60); if(h<24) return h+'h ago';
+  const d=Math.floor(h/24); return d+'d ago';
+}
+function renderHistory(){
+  const el=document.getElementById('historyList'); el.innerHTML='';
+  if(!logs.length){ el.innerHTML='<div class="empty-note">No history yet — start farming!</div>'; return; }
+  logs.forEach(e=>{
+    const msg = typeof e==='string' ? e : e.msg;   // support old string logs
+    const t   = typeof e==='string' ? null : e.t;
+    const d=document.createElement('div'); d.className='hitem';
+    d.innerHTML=`<span>${msg}</span>${t?`<span class="when">${timeAgo(t)}</span>`:''}`;
+    el.appendChild(d);
+  });
+}
+function openHistory(){ renderHistory(); show('historyOverlay'); }
 
 // ---- Save / load ----
 function save(){ try{ localStorage.setItem('sproutWorld', JSON.stringify({...state, logs})); }catch(e){} }
@@ -657,6 +706,7 @@ function buildSetup(){
     state.setupDone=true;
     document.getElementById('setupOverlay').classList.remove('show');
     renderHUD(); renderHotbar();
+    if(!logs.length) log(`🌱 <b>${state.player.name}</b> started their farm!`);
     toast(`Welcome, ${state.player.name}! Walk with WASD / arrows.`);
   };
 }
@@ -664,6 +714,8 @@ function buildSetup(){
 // ---- Wire ----
 document.getElementById('forceRestock').onclick=forceRestock;
 document.getElementById('sellAll').onclick=sellAll;
+document.getElementById('histBtn').onclick=openHistory;
+document.getElementById('clearHist').onclick=()=>{ if(confirm('Clear your history? (progress is kept)')){ logs=[]; save(); renderHistory(); } };
 document.getElementById('resetBtn').onclick=()=>{ if(confirm('Reset all progress?')){ localStorage.removeItem('sproutWorld'); location.reload(); } };
 
 // init
