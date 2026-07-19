@@ -207,7 +207,7 @@
     <p class="sub">Rarer seeds have a lower chance to be in stock. The shop re-rolls its stock every 4 minutes.</p>
     <div class="restock">Restock in <b><span id="restockIn">--</span>s</b></div>
     <div id="shopList"></div>
-    <div class="foot"><button class="btn" id="forceRestock" style="flex:1">🔄 Restock Now (5 🪙)</button></div>
+    <div class="foot"><button class="btn" id="forceRestock" style="flex:1">🔄 Restock Now (1 🍃)</button></div>
   </div>
 </div>
 
@@ -700,9 +700,12 @@ function buy(id){
   log(`Bought a <b>${s.name}</b> seed for ${s.cost} 🪙`);
   renderShop(); renderHUD(); renderHotbar();
 }
+const RESTOCK_LEAF_COST = 1;   // Leaf Coins to force a restock
 function forceRestock(){
-  if(state.coins<5){ toast('Need 5 coins.'); return; }
-  state.coins-=5; rollStock(); log('Paid 5 🪙 to restock the Seed Shop.'); renderShop(); renderHUD();
+  if((state.leafCoins||0) < RESTOCK_LEAF_COST){ toast(`Need ${RESTOCK_LEAF_COST} 🍃 Leaf Coin — get some in the Leaf Shop!`); return; }
+  state.leafCoins-=RESTOCK_LEAF_COST; rollStock();
+  log(`Paid ${RESTOCK_LEAF_COST} 🍃 to restock the Seed Shop.`);
+  renderShop(); renderHUD();
 }
 // A crop key is either "id" or "id*mult" (slippery bonus). Parse it.
 function parseCrop(key){ const [id,m]=key.split('*'); return { seed:SEED_MAP[id], mult:m?parseInt(m):1 }; }
