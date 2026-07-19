@@ -1,0 +1,1002 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Sprout Tycoon — Garden World</title>
+<!-- PWA: installable, offline, fullscreen on any platform -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#16301f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Sprout">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<style>
+  :root{
+    --bg:#0f1e13; --panel:#16301f; --panel2:#1d3d29; --line:#2a5238;
+    --text:#e8f5ea; --muted:#9dc0a6; --gold:#ffd54a;
+    --common:#b8c4bd; --rare:#4aa3ff; --epic:#b56cff; --legendary:#ff9f38; --mythic:#ff4d7d;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,sans-serif;background:#0c1710;color:var(--text);-webkit-user-select:none;user-select:none;touch-action:none}
+  #game{position:fixed;inset:0}
+  canvas{display:block;width:100%;height:100%;background:#3f7d3f}
+
+  /* HUD */
+  .hud{position:fixed;top:12px;left:12px;right:12px;display:flex;justify-content:space-between;gap:10px;pointer-events:none;z-index:10;flex-wrap:wrap}
+  .hud .grp{display:flex;gap:8px;flex-wrap:wrap}
+  .chip{background:rgba(22,48,31,.92);border:1px solid var(--line);border-radius:11px;padding:6px 12px;font-weight:700;font-size:14px;display:flex;align-items:center;gap:6px;backdrop-filter:blur(4px)}
+  .chip.coins{color:var(--gold)}
+  .chip.name{color:#bfe6c8}
+  .chip.click{pointer-events:auto;cursor:pointer}
+  .chip.click:active{background:rgba(47,125,74,.9)}
+  .chip.leaf{color:#7fe6a8;border-color:#2f7d4a}
+  .chip.cur{color:#bfe6c8}
+
+  .histlist{max-height:52vh;overflow:auto;display:flex;flex-direction:column;gap:6px}
+  .hitem{display:flex;justify-content:space-between;gap:10px;padding:8px 10px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;font-size:13.5px;line-height:1.4}
+  .hitem b{color:var(--gold)}
+  .hitem .when{color:var(--muted);font-size:11px;white-space:nowrap;flex-shrink:0}
+
+  /* Interaction prompt */
+  #prompt{position:fixed;left:50%;bottom:120px;transform:translateX(-50%);background:rgba(15,30,19,.95);border:1px solid var(--gold);border-radius:12px;padding:9px 16px;font-size:14px;font-weight:600;z-index:11;display:none;box-shadow:0 6px 20px rgba(0,0,0,.4);text-align:center}
+  #prompt b{color:var(--gold)}
+  #prompt .key{display:inline-block;background:var(--gold);color:#2a2000;border-radius:6px;padding:0 7px;font-weight:800;margin:0 3px}
+
+  /* Seed hotbar */
+  #hotbar{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);display:flex;gap:7px;z-index:10;max-width:94vw;overflow-x:auto;padding:4px}
+  .slot{background:rgba(22,48,31,.92);border:1px solid var(--line);border-radius:11px;min-width:56px;padding:6px 4px;text-align:center;cursor:pointer;position:relative;backdrop-filter:blur(4px)}
+  .slot.sel{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold) inset}
+  .slot .e{font-size:22px;line-height:1}
+  .slot .c{font-size:11px;color:var(--muted);margin-top:1px}
+  .slot .k{position:absolute;top:2px;left:4px;font-size:9px;color:var(--muted)}
+  .slot.empty-hot{color:var(--muted);font-size:11px;min-width:120px;display:flex;align-items:center;justify-content:center}
+
+  /* Mobile dpad + action */
+  #touch{position:fixed;inset:0;z-index:9;pointer-events:none}
+  .dpad{position:absolute;left:18px;bottom:80px;width:150px;height:150px;pointer-events:auto}
+  .dbtn{position:absolute;width:50px;height:50px;background:rgba(22,48,31,.85);border:1px solid var(--line);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--text)}
+  .dbtn:active{background:rgba(47,125,74,.9)}
+  .dpad .up{left:50px;top:0} .dpad .down{left:50px;bottom:0} .dpad .left{left:0;top:50px} .dpad .right{right:0;top:50px}
+  #actBtn{position:absolute;right:24px;bottom:96px;width:74px;height:74px;border-radius:50%;background:rgba(47,125,74,.92);border:2px solid #5be08a;color:#fff;font-weight:800;font-size:20px;pointer-events:auto;display:flex;align-items:center;justify-content:center}
+  #actBtn:active{background:#369155}
+  @media(hover:hover) and (pointer:fine){#touch{display:none}}
+
+  /* Modal panels */
+  .overlay{position:fixed;inset:0;background:rgba(6,14,9,.72);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;z-index:30;padding:16px}
+  .overlay.show{display:flex}
+  .modal{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:20px;width:min(460px,94vw);max-height:88vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+  .modal h2{margin:0 0 4px;font-size:20px;display:flex;align-items:center;gap:8px}
+  .modal .sub{color:var(--muted);font-size:13px;margin:0 0 16px;line-height:1.5}
+  .modal .x{float:right;cursor:pointer;color:var(--muted);font-size:22px;line-height:1;margin:-4px -4px 0 0}
+
+  .field{margin-bottom:14px}
+  .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
+  .field input{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:10px 12px;font-size:15px}
+  .avatars{display:flex;gap:8px;flex-wrap:wrap}
+  .av{width:52px;height:52px;border-radius:12px;background:var(--panel2);border:2px solid var(--line);font-size:28px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+  .av.sel{border-color:var(--gold);box-shadow:0 0 0 2px var(--gold) inset}
+  .colors{display:flex;gap:8px;flex-wrap:wrap}
+  .col{width:34px;height:34px;border-radius:50%;cursor:pointer;border:2px solid transparent}
+  .col.sel{border-color:#fff;box-shadow:0 0 0 2px rgba(255,255,255,.4)}
+  .primary{width:100%;background:#2f7d4a;border:none;color:#fff;font-weight:800;padding:12px;border-radius:12px;cursor:pointer;font-size:15px;margin-top:6px}
+  .primary:hover{background:#369155}
+
+  .row{display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--line);border-radius:12px;margin-bottom:8px;background:var(--panel2)}
+  .row .ico{font-size:26px;width:38px;text-align:center}
+  .row .info{flex:1;min-width:0}
+  .row .nm{font-weight:700;font-size:14px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .row .sub2{font-size:11.5px;color:var(--muted);margin-top:2px}
+  .rar{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;padding:1px 6px;border-radius:6px;color:#101}
+  .rar.common{background:var(--common)} .rar.rare{background:var(--rare);color:#fff}
+  .rar.epic{background:var(--epic);color:#fff} .rar.legendary{background:var(--legendary)} .rar.mythic{background:var(--mythic);color:#fff}
+  .rar.exclusive{background:linear-gradient(90deg,#ff4d7d,#ffab38,#5be08a,#4aa3ff);color:#fff}
+
+  /* Leaf Shop (premium) */
+  .disclaimer{background:rgba(255,213,74,.12);border:1px solid var(--gold);border-radius:10px;padding:9px 12px;font-size:12px;color:#ffe9a8;margin-bottom:14px;line-height:1.5}
+  .packs{display:flex;flex-direction:column;gap:9px;margin-bottom:6px}
+  .pack{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--panel2);position:relative}
+  .pack.best{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold) inset}
+  .pack .leafico{font-size:30px}
+  .pack .amt{font-weight:800;font-size:17px;color:#7fe6a8}
+  .pack .sub3{font-size:11.5px;color:var(--muted)}
+  .pack .best-tag{position:absolute;top:-9px;left:12px;background:var(--gold);color:#2a2000;font-size:10px;font-weight:800;padding:1px 8px;border-radius:8px;text-transform:uppercase}
+  .buymoney{margin-left:auto;background:#2f7d4a;border:none;color:#fff;font-weight:800;padding:10px 14px;border-radius:10px;cursor:pointer;font-size:14px;white-space:nowrap}
+  .buymoney:hover{background:#369155}
+  .sectlabel{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:16px 0 8px;font-weight:700}
+  .buyleaf{margin-left:auto;background:#2f7d4a;border:none;color:#fff;font-weight:800;padding:9px 13px;border-radius:10px;cursor:pointer;font-size:13px;white-space:nowrap;display:flex;align-items:center;gap:4px}
+  .buyleaf:hover{background:#369155} .buyleaf:disabled{background:#3a4a40;color:#7d908a;cursor:not-allowed}
+
+  /* Currency picker */
+  .curlist{display:grid;grid-template-columns:1fr 1fr;gap:7px;max-height:56vh;overflow:auto}
+  @media(max-width:420px){.curlist{grid-template-columns:1fr}}
+  .curitem{display:flex;align-items:center;gap:8px;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);cursor:pointer;font-size:13.5px}
+  .curitem:hover{border-color:var(--rare)}
+  .curitem.sel{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold) inset}
+  .curitem .code{font-weight:800} .curitem .cn{color:var(--muted);font-size:11px}
+  .btn{background:#2f7d4a;border:none;color:#fff;font-weight:700;padding:8px 12px;border-radius:10px;cursor:pointer;font-size:13px;white-space:nowrap}
+  .btn:hover{background:#369155}
+  .btn:disabled{background:#3a4a40;color:#7d908a;cursor:not-allowed}
+  .btn.sell{background:#a8842f} .btn.sell:hover{background:#c29a38}
+  .out{opacity:.5} .out .ico{filter:grayscale(1)}
+  .stockline{font-size:11px;font-weight:700}
+  .modal .foot{display:flex;gap:8px;margin-top:12px}
+  .modal .foot .btn{flex:1;text-align:center}
+  .empty-note{color:var(--muted);font-size:13px;text-align:center;padding:16px}
+  .restock{font-size:12px;color:var(--muted);margin-bottom:10px}
+  .toast{position:fixed;left:50%;bottom:180px;transform:translateX(-50%);background:#1d3d29;border:1px solid var(--line);padding:10px 18px;border-radius:12px;font-size:14px;opacity:0;transition:opacity .3s,bottom .3s;pointer-events:none;z-index:40;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+  .toast.show{opacity:1;bottom:192px}
+  /* Restock notification banner */
+  #notif{position:fixed;top:64px;left:50%;transform:translateX(-50%) translateY(-18px);background:rgba(29,61,41,.97);border:1px solid var(--gold);border-radius:14px;padding:11px 18px;font-size:14px;font-weight:600;z-index:25;box-shadow:0 12px 32px rgba(0,0,0,.5);opacity:0;pointer-events:none;transition:opacity .35s,transform .35s;max-width:92vw;text-align:center;cursor:pointer;display:flex;align-items:center;gap:8px}
+  #notif.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
+  #notif b{color:var(--gold)}
+  #notif .tap{font-size:11px;color:var(--muted);font-weight:600}
+  .tiny{font-size:11px;color:var(--muted);text-align:center;margin-top:10px}
+  .tiny a{color:var(--muted);cursor:pointer;text-decoration:underline}
+</style>
+</head>
+<body>
+<div id="game"><canvas id="cv"></canvas></div>
+
+<div class="hud">
+  <div class="grp">
+    <div class="chip name" id="hudName">🧑‍🌾 Farmer</div>
+    <div class="chip">🏆 Lv <span id="hudLevel">1</span></div>
+    <div class="chip click" id="histBtn">📜 History</div>
+  </div>
+  <div class="grp">
+    <div class="chip click cur" id="curBtn">💱 <span id="hudCur">USD</span></div>
+    <div class="chip click leaf" id="leafBtn">🍃 <span id="hudLeaf">0</span></div>
+    <div class="chip coins">🪙 <span id="hudCoins">0</span></div>
+    <div class="chip">🌾 <span id="hudCrops">0</span> crops</div>
+  </div>
+</div>
+
+<div id="notif"></div>
+
+<div id="prompt"></div>
+
+<div id="hotbar"></div>
+
+<div id="touch">
+  <div class="dpad">
+    <div class="dbtn up" data-dir="up">▲</div>
+    <div class="dbtn down" data-dir="down">▼</div>
+    <div class="dbtn left" data-dir="left">◀</div>
+    <div class="dbtn right" data-dir="right">▶</div>
+  </div>
+  <div id="actBtn">E</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Character setup -->
+<div class="overlay" id="setupOverlay">
+  <div class="modal">
+    <h2>🌱 Welcome to Sprout Tycoon</h2>
+    <p class="sub">Create your farmer, then walk around your land. Visit the Seed Shop to buy seeds and the Market to sell your crops.</p>
+    <div class="field">
+      <label>Farmer name</label>
+      <input id="nameInput" maxlength="16" placeholder="Enter your name" value="">
+    </div>
+    <div class="field">
+      <label>Choose your avatar</label>
+      <div class="avatars" id="avatarPick"></div>
+    </div>
+    <div class="field">
+      <label>Name tag color</label>
+      <div class="colors" id="colorPick"></div>
+    </div>
+    <button class="primary" id="startBtn">🚜 Start Farming</button>
+  </div>
+</div>
+
+<!-- Seed shop -->
+<div class="overlay" id="seedOverlay">
+  <div class="modal">
+    <span class="x" data-close="seedOverlay">✕</span>
+    <h2>🌱 Seed Shop</h2>
+    <p class="sub">Rarer seeds have a lower chance to be in stock. The shop re-rolls its stock every 4 minutes.</p>
+    <div class="restock">Restock in <b><span id="restockIn">--</span>s</b></div>
+    <div id="shopList"></div>
+    <div class="foot"><button class="btn" id="forceRestock" style="flex:1">🔄 Restock Now (5 🪙)</button></div>
+  </div>
+</div>
+
+<!-- Market (sell) -->
+<div class="overlay" id="marketOverlay">
+  <div class="modal">
+    <span class="x" data-close="marketOverlay">✕</span>
+    <h2>🏪 Market</h2>
+    <p class="sub">Sell the crops you've harvested for coins. Epic, legendary &amp; mythic crops harvest in bunches, so they pile up fast!</p>
+    <div id="marketList"></div>
+    <div class="foot"><button class="btn sell" id="sellAll" style="flex:1">💰 Sell Everything</button></div>
+    <p class="tiny">Progress saves automatically · <a id="resetBtn">reset game</a></p>
+  </div>
+</div>
+
+<!-- History -->
+<div class="overlay" id="historyOverlay">
+  <div class="modal">
+    <span class="x" data-close="historyOverlay">✕</span>
+    <h2>📜 Your History</h2>
+    <p class="sub">Everything you've done, newest first — saved automatically on this device.</p>
+    <div class="histlist" id="historyList"></div>
+    <div class="foot"><button class="btn" id="clearHist" style="flex:1">Clear history</button></div>
+  </div>
+</div>
+
+<!-- Leaf Shop (premium) -->
+<div class="overlay" id="leafOverlay">
+  <div class="modal">
+    <span class="x" data-close="leafOverlay">✕</span>
+    <h2>🍃 Leaf Shop</h2>
+    <p class="sub">Leaf Coins are an exclusive premium currency. Buy a pack, then spend them on exclusive plants below.</p>
+    <div class="disclaimer">🎮 <b>Demo store.</b> This is a game — no real money is charged and no payment details are collected. Buying a pack instantly grants the Leaf Coins so you can try the feature. Prices shown in your selected currency.</div>
+    <div class="sectlabel">Leaf Coin packs</div>
+    <div class="packs" id="packList"></div>
+    <div class="sectlabel">Exclusive plants — pay with 🍃</div>
+    <div id="exclusiveList"></div>
+  </div>
+</div>
+
+<!-- Currency picker -->
+<div class="overlay" id="currencyOverlay">
+  <div class="modal">
+    <span class="x" data-close="currencyOverlay">✕</span>
+    <h2>💱 Choose your currency</h2>
+    <p class="sub">Pick your country's currency — Leaf Shop prices convert to it. Rates are approximate and fixed for the demo.</p>
+    <div class="curlist" id="curList"></div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   Sprout Tycoon — walk-around garden world
+   ============================================================ */
+
+// ---- Seed catalog ----
+// Plants are permanent: once planted they mature over `grow` (seconds), come up
+// with `cap` ripe fruit, and each fruit you harvest regrows in REGROW_MS (5 min).
+const SEEDS = [
+  { id:'carrot',    name:'Carrot',        emoji:'🥕', rarity:'common',    cost:10,    grow:8,   sell:16,     stockChance:1.00, cap:3 },
+  { id:'potato',    name:'Potato',        emoji:'🥔', rarity:'common',    cost:14,    grow:10,  sell:22,     stockChance:0.90, cap:3 },
+  { id:'wheat',     name:'Wheat',         emoji:'🌾', rarity:'common',    cost:8,     grow:6,   sell:12,     stockChance:1.00, cap:3 },
+  { id:'strawberry',name:'Strawberry',    emoji:'🍓', rarity:'rare',      cost:120,    grow:600,   sell:210,      stockChance:0.35, cap:5 },
+  { id:'tomato',    name:'Tomato',        emoji:'🍅', rarity:'rare',      cost:160,    grow:600,   sell:290,      stockChance:0.30, cap:5 },
+  { id:'corn',      name:'Corn',          emoji:'🌽', rarity:'rare',      cost:220,    grow:600,   sell:400,      stockChance:0.25, cap:5 },
+  { id:'watermelon',name:'Watermelon',    emoji:'🍉', rarity:'epic',      cost:1200,   grow:1800,  sell:800,      stockChance:0.10, cap:8 },
+  { id:'grapes',    name:'Grapes',        emoji:'🍇', rarity:'epic',      cost:1500,   grow:1800,  sell:1000,     stockChance:0.10, cap:8 },
+  { id:'pumpkin',   name:'Pumpkin',       emoji:'🎃', rarity:'epic',      cost:1800,   grow:1800,  sell:1200,     stockChance:0.08, cap:8 },
+  { id:'goldapple', name:'Golden Apple',  emoji:'🍏', rarity:'legendary', cost:12000,  grow:3600,  sell:5500,     stockChance:0.010, cap:4 },
+  { id:'dragonfruit',name:'Dragon Fruit', emoji:'🐉', rarity:'legendary', cost:16000,  grow:3600,  sell:7500,     stockChance:0.010, cap:4 },
+  { id:'celestial', name:'Celestial Rose',emoji:'🌹', rarity:'mythic',    cost:100000, grow:7200,  sell:28000,    stockChance:0.001, cap:1 },
+  { id:'phoenix',   name:'Phoenix Bloom', emoji:'🔥', rarity:'mythic',    cost:140000, grow:7200,  sell:40000,    stockChance:0.001, cap:2 },
+  // Exclusive — never restock; buyable only with Leaf Coins in the Leaf Shop
+  { id:'rainbow',   name:'Rainbow Bloom',  emoji:'🌈', rarity:'exclusive', cost:0, grow:300,  sell:25000,  stockChance:0, cap:6, leafCost:25 },
+  { id:'starfruit', name:'Star Fruit',     emoji:'⭐', rarity:'exclusive', cost:0, grow:300,  sell:15000,  stockChance:0, cap:6, leafCost:12 },
+];
+const REGROW_MS = 5*60*1000;   // each harvested fruit regrows in 5 minutes
+const SEED_MAP = Object.fromEntries(SEEDS.map(s=>[s.id,s]));
+const RARITY_ORDER = {common:0,rare:1,epic:2,legendary:3,mythic:4,exclusive:5};
+
+// Premium currency: Leaf Coin packs (USD base price) and country currencies
+const LEAF_PACKS = [
+  { leaf:50,   usd:10,  tag:'Starter' },
+  { leaf:500,  usd:75,  tag:'Value', best:true },
+  { leaf:1000, usd:500, tag:'Mega' },
+];
+const CURRENCIES = {
+  USD:{sym:'$',   rate:1,    dec:2, flag:'🇺🇸', name:'US Dollar'},
+  EUR:{sym:'€',   rate:0.92, dec:2, flag:'🇪🇺', name:'Euro'},
+  GBP:{sym:'£',   rate:0.79, dec:2, flag:'🇬🇧', name:'British Pound'},
+  JPY:{sym:'¥',   rate:155,  dec:0, flag:'🇯🇵', name:'Japanese Yen'},
+  CAD:{sym:'C$',  rate:1.37, dec:2, flag:'🇨🇦', name:'Canadian Dollar'},
+  AUD:{sym:'A$',  rate:1.52, dec:2, flag:'🇦🇺', name:'Australian Dollar'},
+  INR:{sym:'₹',   rate:83,   dec:0, flag:'🇮🇳', name:'Indian Rupee'},
+  CNY:{sym:'¥',   rate:7.2,  dec:2, flag:'🇨🇳', name:'Chinese Yuan'},
+  BRL:{sym:'R$',  rate:5.1,  dec:2, flag:'🇧🇷', name:'Brazilian Real'},
+  MXN:{sym:'MX$', rate:17,   dec:2, flag:'🇲🇽', name:'Mexican Peso'},
+  AED:{sym:'AED ',rate:3.67, dec:2, flag:'🇦🇪', name:'UAE Dirham'},
+  SAR:{sym:'SAR ',rate:3.75, dec:2, flag:'🇸🇦', name:'Saudi Riyal'},
+  NGN:{sym:'₦',   rate:1500, dec:0, flag:'🇳🇬', name:'Nigerian Naira'},
+  ZAR:{sym:'R',   rate:18.5, dec:2, flag:'🇿🇦', name:'South African Rand'},
+  KRW:{sym:'₩',   rate:1350, dec:0, flag:'🇰🇷', name:'South Korean Won'},
+  TRY:{sym:'₺',   rate:32,   dec:2, flag:'🇹🇷', name:'Turkish Lira'},
+  CHF:{sym:'CHF ',rate:0.90, dec:2, flag:'🇨🇭', name:'Swiss Franc'},
+  SGD:{sym:'S$',  rate:1.35, dec:2, flag:'🇸🇬', name:'Singapore Dollar'},
+  PKR:{sym:'₨',   rate:278,  dec:0, flag:'🇵🇰', name:'Pakistani Rupee'},
+  EGP:{sym:'E£',  rate:48,   dec:2, flag:'🇪🇬', name:'Egyptian Pound'},
+};
+
+const AVATARS = ['🧑‍🌾','👩‍🌾','👨‍🌾','🧙','🤠','🧝','👷','🐰','🦊','🐻'];
+const NAME_COLORS = ['#5be08a','#4aa3ff','#ff9f38','#ff4d7d','#b56cff','#ffd54a','#ff6b6b','#57e0d0'];
+
+// ---- World layout ----
+const TS = 48;                 // tile size (px)
+const RESTOCK_MS = 4*60*1000;  // shop restocks every 4 minutes
+const COLS = 30, ROWS = 22;
+const WORLD_W = COLS*TS, WORLD_H = ROWS*TS;
+
+// Buildings: {x,y,w,h in px, kind, label, emoji, door:{x,y}}
+const BUILDINGS = [
+  { kind:'seed',   label:'Seed Shop', emoji:'🌱', col:21, row:3,  w:5, h:4 },
+  { kind:'market', label:'Market',    emoji:'🏪', col:21, row:14, w:5, h:4 },
+].map(b=>{
+  const x=b.col*TS, y=b.row*TS, w=b.w*TS, h=b.h*TS;
+  return {...b, x,y,w,h, door:{x:x+w/2, y:y+h+TS*0.55}};
+});
+
+// Garden plots (fixed positions)
+const PLOTS = [];
+for(let j=0;j<3;j++) for(let i=0;i<4;i++){
+  const col=4+i*2, row=7+j*2;
+  PLOTS.push({ x:col*TS+TS/2, y:row*TS+TS/2, seedId:null, plantedAt:0 });
+}
+
+// Decorative + solid trees
+const TREES = [
+  {col:2,row:2},{col:27,row:2},{col:2,row:19},{col:27,row:19},
+  {col:14,row:2},{col:14,row:20},{col:1,row:11},{col:28,row:11},
+];
+const TREE_R = 18;
+
+// ---- State ----
+let logs = [];   // declared before load() so load() can populate it safely
+let state = load() || {
+  setupDone:false,
+  player:{ x:WORLD_W*0.42, y:WORLD_H*0.55, name:'Farmer', avatar:'🧑‍🌾', color:'#5be08a' },
+  coins:30,
+  leafCoins:0,  // premium currency
+  currency:'USD',
+  seedInv:{},   // seeds to plant
+  cropInv:{},   // harvested crops to sell
+  plots:PLOTS.map(p=>({seedId:null,fruits:0,timers:[]})),
+  shop:{},
+  lastRestock:Date.now(),
+  selectedSeed:null,
+  xp:0,
+};
+// migrate plot positions + shape onto saved plot data
+state.plots = PLOTS.map((p,i)=>normalizePlot(p, state.plots[i]));
+
+function now(){ return Date.now(); }
+// Format a duration in seconds as "2h", "1h 5m", "30m", "45s", etc.
+function fmtTime(sec){
+  sec=Math.max(0,Math.ceil(sec));
+  const h=Math.floor(sec/3600), m=Math.floor((sec%3600)/60), s=sec%60;
+  if(h>0) return m>0?`${h}h ${m}m`:`${h}h`;
+  if(m>0) return s>0?`${m}m ${s}s`:`${m}m`;
+  return `${s}s`;
+}
+// Convert a USD price into the player's selected currency, formatted with symbol.
+function money(usd){
+  const c=CURRENCIES[state.currency]||CURRENCIES.USD;
+  const v=usd*c.rate;
+  const s=v.toLocaleString(undefined,{minimumFractionDigits:c.dec, maximumFractionDigits:c.dec});
+  return c.sym+s;
+}
+
+// Build a fresh plot object, migrating any saved data (old or new format).
+function normalizePlot(pos, saved){
+  const pl = { x:pos.x, y:pos.y, seedId:null, fruits:0, timers:[] };
+  if(saved && saved.seedId){
+    pl.seedId = saved.seedId;
+    const s = SEED_MAP[saved.seedId];
+    if(!s){ pl.seedId=null; return pl; }
+    if(Array.isArray(saved.timers)){
+      // already new format
+      pl.fruits = Math.min(saved.fruits||0, s.cap);
+      pl.timers = saved.timers.filter(t=>t&&typeof t.at==='number').map(t=>({at:t.at, dur:t.dur||REGROW_MS}));
+    } else {
+      // old format: {seedId, plantedAt} — treat as initial growth of a full plant
+      const readyAt = (saved.plantedAt||now()) + s.grow*1000;
+      pl.fruits = 0;
+      pl.timers = Array.from({length:s.cap}, ()=>({at:readyAt, dur:s.grow*1000}));
+    }
+  }
+  return pl;
+}
+
+// Advance every plant: mature ripe fruit, then keep empty slots regrowing.
+function updatePlots(){
+  const t = now();
+  for(const pl of state.plots){
+    if(!pl.seedId) continue;
+    const cap = SEED_MAP[pl.seedId].cap;
+    if(!pl.timers) pl.timers=[];
+    for(let i=pl.timers.length-1;i>=0;i--){
+      if(pl.timers[i].at<=t){ pl.fruits=(pl.fruits||0)+1; pl.timers.splice(i,1); }
+    }
+    if(pl.fruits>cap) pl.fruits=cap;
+    // any slot that is neither ripe nor already regrowing starts a 5-min regrow
+    while((pl.fruits||0)+pl.timers.length < cap){ pl.timers.push({at:t+REGROW_MS, dur:REGROW_MS}); }
+  }
+}
+
+// ---- Canvas setup ----
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+let VW=0, VH=0, DPR=1;
+function resize(){
+  DPR = Math.min(window.devicePixelRatio||1, 2);
+  VW = window.innerWidth; VH = window.innerHeight;
+  cv.width = VW*DPR; cv.height = VH*DPR;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+window.addEventListener('resize', resize); resize();
+
+// Camera
+let cam = {x:0,y:0};
+function updateCamera(dt){
+  const tx = clamp(state.player.x - VW/2, 0, Math.max(0,WORLD_W-VW));
+  const ty = clamp(state.player.y - VH/2, 0, Math.max(0,WORLD_H-VH));
+  // smooth follow
+  cam.x += (tx-cam.x)*Math.min(1, dt*8);
+  cam.y += (ty-cam.y)*Math.min(1, dt*8);
+  if(WORLD_W<VW) cam.x = (WORLD_W-VW)/2;
+  if(WORLD_H<VH) cam.y = (WORLD_H-VH)/2;
+}
+function clamp(v,a,b){ return v<a?a:(v>b?b:v); }
+
+// ---- Input ----
+const keys = {};
+let paused = ()=> document.querySelector('.overlay.show') || !state.setupDone;
+window.addEventListener('keydown', e=>{
+  if(e.target.tagName==='INPUT') return;
+  const k = e.key.toLowerCase();
+  if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k)) e.preventDefault();
+  keys[k]=true;
+  if(k==='e' || k===' ') tryInteract();
+  if(k==='h') openHistory();
+  if(k==='escape') closeAll();
+  if(k>='1' && k<='9'){ selectSlot(parseInt(k)-1); }
+});
+window.addEventListener('keyup', e=>{ keys[e.key.toLowerCase()]=false; });
+
+// touch dpad
+const touchDir = {up:false,down:false,left:false,right:false};
+document.querySelectorAll('.dbtn').forEach(btn=>{
+  const d = btn.dataset.dir;
+  const on = e=>{e.preventDefault();touchDir[d]=true;};
+  const off = e=>{e.preventDefault();touchDir[d]=false;};
+  btn.addEventListener('touchstart',on,{passive:false});
+  btn.addEventListener('touchend',off);btn.addEventListener('touchcancel',off);
+  btn.addEventListener('mousedown',on);btn.addEventListener('mouseup',off);btn.addEventListener('mouseleave',off);
+});
+document.getElementById('actBtn').addEventListener('touchstart',e=>{e.preventDefault();tryInteract();},{passive:false});
+document.getElementById('actBtn').addEventListener('click',e=>{e.preventDefault();tryInteract();});
+
+// ---- Movement ----
+const SPEED = 190; // px/s
+function movePlayer(dt){
+  if(paused()) return;
+  let dx=0, dy=0;
+  if(keys['arrowup']||keys['w']||touchDir.up) dy-=1;
+  if(keys['arrowdown']||keys['s']||touchDir.down) dy+=1;
+  if(keys['arrowleft']||keys['a']||touchDir.left) dx-=1;
+  if(keys['arrowright']||keys['d']||touchDir.right) dx+=1;
+  if(dx||dy){
+    const len=Math.hypot(dx,dy); dx/=len; dy/=len;
+    const p=state.player;
+    tryMove(p, dx*SPEED*dt, 0);
+    tryMove(p, 0, dy*SPEED*dt);
+  }
+}
+const PR = 14; // player collision radius
+function tryMove(p, dx, dy){
+  const nx=clamp(p.x+dx, PR, WORLD_W-PR), ny=clamp(p.y+dy, PR, WORLD_H-PR);
+  if(!collides(nx, ny)){ p.x=nx; p.y=ny; }
+}
+function collides(x,y){
+  for(const b of BUILDINGS){
+    if(x> b.x-PR && x< b.x+b.w+PR && y> b.y-PR && y< b.y+b.h+PR) return true;
+  }
+  for(const t of TREES){
+    const tx=t.col*TS+TS/2, ty=t.row*TS+TS*0.62;
+    if(Math.hypot(x-tx,y-ty) < TREE_R+PR-6) return true;
+  }
+  return false;
+}
+
+// ---- Interaction ----
+function nearestInteractable(){
+  const p=state.player; let best=null, bestD=1e9;
+  for(const b of BUILDINGS){
+    const d=Math.hypot(p.x-b.door.x, p.y-b.door.y);
+    if(d<70 && d<bestD){ bestD=d; best={type:b.kind, label:b.label}; }
+  }
+  for(let i=0;i<state.plots.length;i++){
+    const pl=state.plots[i];
+    const d=Math.hypot(p.x-pl.x, p.y-pl.y);
+    if(d<52 && d<bestD){ bestD=d; best={type:'plot', index:i}; }
+  }
+  return best;
+}
+function tryInteract(){
+  if(!state.setupDone){ return; }
+  if(document.querySelector('.overlay.show')){ return; }
+  const it=nearestInteractable();
+  if(!it) return;
+  if(it.type==='seed'){ openSeedShop(); }
+  else if(it.type==='market'){ openMarket(); }
+  else if(it.type==='plot'){ handlePlot(it.index); }
+}
+function handlePlot(i){
+  updatePlots();
+  const pl=state.plots[i];
+  if(pl.seedId){
+    const s=SEED_MAP[pl.seedId];
+    if(pl.fruits>0){
+      // harvest a single fruit; that one slot immediately starts regrowing (5m)
+      pl.fruits -= 1;
+      state.cropInv[s.id]=(state.cropInv[s.id]||0)+1;
+      state.xp += Math.round(s.sell/10);
+      updatePlots();   // queue the 5-min regrow timer for the emptied slot
+      const leftTxt = pl.fruits>0 ? ` · ${pl.fruits} left` : '';
+      toast(`Harvested 1 ${s.emoji} ${s.name}${leftTxt}`);
+      log(`Harvested <b>1 ${s.name}</b> (regrows in 5m)`);
+    } else {
+      const next=pl.timers.reduce((m,t)=>Math.min(m,t.at), Infinity);
+      const left=(next-now())/1000;
+      toast(`${s.name} — next fruit in ${fmtTime(left)}`);
+    }
+  } else {
+    const id=state.selectedSeed;
+    if(!id || !state.seedInv[id]){ toast('Select a seed in your hotbar first!'); return; }
+    const s=SEED_MAP[id];
+    state.seedInv[id]-=1; if(state.seedInv[id]<=0){ delete state.seedInv[id]; }
+    const readyAt=now()+s.grow*1000;
+    pl.seedId=id; pl.fruits=0;
+    pl.timers=Array.from({length:s.cap}, ()=>({at:readyAt, dur:s.grow*1000}));
+    toast(`Planted ${s.emoji} ${s.name} — ${s.cap} fruit in ${fmtTime(s.grow)}`);
+    log(`Planted a <b>${s.name}</b> (holds ${s.cap}, regrows forever)`);
+    if(!state.seedInv[id]) state.selectedSeed = Object.keys(state.seedInv)[0]||null;
+  }
+  renderHUD(); renderHotbar();
+}
+
+// ---- Shop restock ----
+function rollStock(){
+  const shop={};
+  for(const s of SEEDS){
+    if(Math.random()<s.stockChance){
+      const base={common:12,rare:6,epic:3,legendary:2,mythic:1}[s.rarity];
+      shop[s.id]=1+Math.floor(Math.random()*base);
+    }
+  }
+  if(Object.keys(shop).length===0) shop['carrot']=8;
+  state.shop=shop; state.lastRestock=now();
+}
+function maybeRestock(){
+  if(now()-state.lastRestock>=RESTOCK_MS){
+    rollStock();
+    const rare=Object.keys(state.shop).filter(id=>RARITY_ORDER[SEED_MAP[id].rarity]>=3);
+    if(rare.length){
+      log(`✨ Shop restocked — rare find: <b>${rare.map(id=>SEED_MAP[id].name).join(', ')}</b>!`);
+      notify(`✨ <b>${rare.map(id=>SEED_MAP[id].name).join(', ')}</b> in stock! <span class="tap">tap to shop</span>`);
+    } else {
+      log('🔄 Seed Shop restocked.');
+      notify(`🔄 <b>Seed Shop restocked!</b> <span class="tap">tap to shop</span>`);
+    }
+    if(document.getElementById('seedOverlay').classList.contains('show')) renderShop();
+  }
+}
+
+// ---- Shop / market actions ----
+function buy(id){
+  const s=SEED_MAP[id];
+  if(!state.shop[id]){ toast('Out of stock!'); return; }
+  if(state.coins<s.cost){ toast('Not enough coins.'); return; }
+  state.coins-=s.cost; state.shop[id]-=1; if(state.shop[id]<=0) delete state.shop[id];
+  state.seedInv[id]=(state.seedInv[id]||0)+1;
+  if(!state.selectedSeed) state.selectedSeed=id;
+  toast(`Bought ${s.emoji} ${s.name}`);
+  log(`Bought a <b>${s.name}</b> seed for ${s.cost} 🪙`);
+  renderShop(); renderHUD(); renderHotbar();
+}
+function forceRestock(){
+  if(state.coins<5){ toast('Need 5 coins.'); return; }
+  state.coins-=5; rollStock(); log('Paid 5 🪙 to restock the Seed Shop.'); renderShop(); renderHUD();
+}
+function sellCrop(id){
+  const n=state.cropInv[id]; if(!n) return;
+  const s=SEED_MAP[id];
+  state.coins += s.sell*n; delete state.cropInv[id];
+  toast(`Sold ${n}× ${s.emoji} for ${s.sell*n} 🪙`);
+  log(`Sold ${n}× <b>${s.name}</b> for +${s.sell*n} 🪙`);
+  renderMarket(); renderHUD();
+}
+function sellAll(){
+  let total=0,count=0;
+  for(const id in state.cropInv){ total+=SEED_MAP[id].sell*state.cropInv[id]; count+=state.cropInv[id]; }
+  if(!count){ toast('No crops to sell.'); return; }
+  state.coins+=total; state.cropInv={};
+  toast(`Sold ${count} crops for ${total} 🪙`);
+  log(`Sold <b>${count}</b> crops for +${total} 🪙`);
+  renderMarket(); renderHUD();
+}
+
+// ---- Premium (Leaf Coins) ----
+function buyLeafPack(i){
+  const p=LEAF_PACKS[i]; if(!p) return;
+  // DEMO ONLY: no real payment is processed; instantly grant the coins.
+  state.leafCoins=(state.leafCoins||0)+p.leaf;
+  toast(`+${p.leaf} 🍃 Leaf Coins (demo)`);
+  log(`🍃 Bought <b>${p.leaf} Leaf Coins</b> pack (${money(p.usd)}, demo — no real charge)`);
+  renderPremium(); renderHUD();
+}
+function buyExclusive(id){
+  const s=SEED_MAP[id];
+  if((state.leafCoins||0) < s.leafCost){ toast('Not enough Leaf Coins.'); return; }
+  state.leafCoins-=s.leafCost;
+  state.seedInv[id]=(state.seedInv[id]||0)+1;
+  if(!state.selectedSeed) state.selectedSeed=id;
+  toast(`Bought ${s.emoji} ${s.name}!`);
+  log(`Bought exclusive <b>${s.name}</b> for ${s.leafCost} 🍃`);
+  renderPremium(); renderHUD(); renderHotbar();
+}
+function renderPremium(){
+  const pk=document.getElementById('packList'); pk.innerHTML='';
+  LEAF_PACKS.forEach((p,i)=>{
+    const d=document.createElement('div'); d.className='pack'+(p.best?' best':'');
+    d.innerHTML=`${p.best?'<span class="best-tag">Best value</span>':''}
+      <span class="leafico">🍃</span>
+      <div><div class="amt">${p.leaf.toLocaleString()} Leaf Coins</div><div class="sub3">${p.tag} pack</div></div>
+      <button class="buymoney">${money(p.usd)}</button>`;
+    d.querySelector('.buymoney').onclick=()=>buyLeafPack(i);
+    pk.appendChild(d);
+  });
+  const ex=document.getElementById('exclusiveList'); ex.innerHTML='';
+  SEEDS.filter(s=>s.leafCost).forEach(s=>{
+    const afford=(state.leafCoins||0)>=s.leafCost;
+    const d=document.createElement('div'); d.className='row';
+    d.innerHTML=`<div class="ico">${s.emoji}</div>
+      <div class="info">
+        <div class="nm">${s.name} <span class="rar exclusive">exclusive</span></div>
+        <div class="sub2">Matures ${fmtTime(s.grow)} · holds ×${s.cap}, regrows 5m · sells ${s.sell} 🪙</div>
+      </div>
+      <button class="buyleaf" ${afford?'':'disabled'}>🍃 ${s.leafCost}</button>`;
+    d.querySelector('.buyleaf').onclick=()=>buyExclusive(s.id);
+    ex.appendChild(d);
+  });
+}
+function renderCurrency(){
+  const el=document.getElementById('curList'); el.innerHTML='';
+  Object.entries(CURRENCIES).forEach(([code,c])=>{
+    const d=document.createElement('div'); d.className='curitem'+(state.currency===code?' sel':'');
+    d.innerHTML=`<span style="font-size:18px">${c.flag}</span><span class="code">${code}</span> <span class="cn">${c.name}</span>`;
+    d.onclick=()=>{ state.currency=code; renderCurrency(); renderPremium(); renderHUD(); document.getElementById('currencyOverlay').classList.remove('show'); toast(`Currency set to ${code}`); };
+    el.appendChild(d);
+  });
+}
+
+// ---- Panels ----
+function openSeedShop(){ renderShop(); show('seedOverlay'); }
+function openMarket(){ renderMarket(); show('marketOverlay'); }
+function openLeafShop(){ renderPremium(); show('leafOverlay'); }
+function openCurrency(){ renderCurrency(); show('currencyOverlay'); }
+function show(id){ document.getElementById(id).classList.add('show'); }
+function closeAll(){ document.querySelectorAll('.overlay.show').forEach(o=>{ if(o.id!=='setupOverlay') o.classList.remove('show'); }); }
+document.querySelectorAll('[data-close]').forEach(x=>x.onclick=()=>document.getElementById(x.dataset.close).classList.remove('show'));
+
+function renderShop(){
+  const el=document.getElementById('shopList'); el.innerHTML='';
+  SEEDS.filter(s=>!s.leafCost).sort((a,b)=>RARITY_ORDER[a.rarity]-RARITY_ORDER[b.rarity]).forEach(s=>{
+    const inStock=state.shop[s.id]>0;
+    const pct=s.stockChance*100;
+    const chance = pct>=1?pct.toFixed(0)+'%':pct.toFixed(1)+'%';
+    const d=document.createElement('div');
+    d.className='row'+(inStock?'':' out');
+    d.innerHTML=`<div class="ico">${s.emoji}</div>
+      <div class="info">
+        <div class="nm">${s.name} <span class="rar ${s.rarity}">${s.rarity}</span></div>
+        <div class="sub2">Matures ${fmtTime(s.grow)} · holds ×${s.cap}, regrows 5m · sells ${s.sell} 🪙 · stock ${chance}</div>
+        <div class="stockline" style="color:${inStock?'var(--common)':'#c26'}">${inStock?('In stock ×'+state.shop[s.id]):'Out of stock'}</div>
+      </div>
+      <button class="btn" ${(!inStock||state.coins<s.cost)?'disabled':''}>${s.cost} 🪙</button>`;
+    d.querySelector('.btn').onclick=()=>buy(s.id);
+    el.appendChild(d);
+  });
+}
+function renderMarket(){
+  const el=document.getElementById('marketList'); el.innerHTML='';
+  const ids=Object.keys(state.cropInv).sort((a,b)=>RARITY_ORDER[SEED_MAP[a].rarity]-RARITY_ORDER[SEED_MAP[b].rarity]);
+  if(!ids.length){ el.innerHTML='<div class="empty-note">No crops yet. Plant seeds in the garden, wait for them to ripen, then harvest and come back to sell!</div>'; return; }
+  ids.forEach(id=>{
+    const s=SEED_MAP[id], n=state.cropInv[id];
+    const d=document.createElement('div'); d.className='row';
+    d.innerHTML=`<div class="ico">${s.emoji}</div>
+      <div class="info">
+        <div class="nm">${s.name} <span class="rar ${s.rarity}">${s.rarity}</span></div>
+        <div class="sub2">×${n} in basket · ${s.sell} 🪙 each</div>
+      </div>
+      <button class="btn sell">Sell ${s.sell*n} 🪙</button>`;
+    d.querySelector('.btn').onclick=()=>sellCrop(id);
+    el.appendChild(d);
+  });
+}
+
+// ---- HUD & hotbar ----
+function levelFromXp(xp){ return 1+Math.floor(Math.sqrt(xp/50)); }
+function renderHUD(){
+  const lvl = levelFromXp(state.xp);
+  if(state.lastLevel && lvl>state.lastLevel){ log(`🏆 Reached <b>Level ${lvl}</b>!`); }
+  state.lastLevel = lvl;
+  document.getElementById('hudName').textContent = state.player.avatar+' '+state.player.name;
+  document.getElementById('hudCoins').textContent = Math.floor(state.coins).toLocaleString();
+  document.getElementById('hudLevel').textContent = lvl;
+  document.getElementById('hudCrops').textContent = Object.values(state.cropInv).reduce((a,b)=>a+b,0);
+  document.getElementById('hudLeaf').textContent = Math.floor(state.leafCoins||0).toLocaleString();
+  document.getElementById('hudCur').textContent = state.currency||'USD';
+  save();
+}
+function renderHotbar(){
+  const hb=document.getElementById('hotbar'); hb.innerHTML='';
+  const ids=Object.keys(state.seedInv).sort((a,b)=>RARITY_ORDER[SEED_MAP[a].rarity]-RARITY_ORDER[SEED_MAP[b].rarity]);
+  if(!ids.length){ hb.innerHTML='<div class="slot empty-hot">Buy seeds at the 🌱 Seed Shop</div>'; return; }
+  ids.forEach((id,i)=>{
+    const s=SEED_MAP[id];
+    const d=document.createElement('div');
+    d.className='slot'+(state.selectedSeed===id?' sel':'');
+    d.innerHTML=`${i<9?`<span class="k">${i+1}</span>`:''}<div class="e">${s.emoji}</div><div class="c">×${state.seedInv[id]}</div>`;
+    d.onclick=()=>{ state.selectedSeed=id; renderHotbar(); };
+    hb.appendChild(d);
+  });
+}
+function selectSlot(i){
+  const ids=Object.keys(state.seedInv).sort((a,b)=>RARITY_ORDER[SEED_MAP[a].rarity]-RARITY_ORDER[SEED_MAP[b].rarity]);
+  if(ids[i]){ state.selectedSeed=ids[i]; renderHotbar(); }
+}
+
+// ---- Drawing the world ----
+function draw(){
+  ctx.clearRect(0,0,VW,VH);
+  ctx.save();
+  ctx.translate(-cam.x,-cam.y);
+
+  // grass
+  ctx.fillStyle='#4a8f4a';
+  ctx.fillRect(0,0,WORLD_W,WORLD_H);
+  // grass texture
+  ctx.fillStyle='rgba(60,120,60,.5)';
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+    if((r+c)%2===0){ ctx.fillRect(c*TS,r*TS,TS,TS); }
+  }
+  // garden fenced dirt area background
+  roundRect(3.4*TS,6.4*TS, 8.2*TS, 6.2*TS, 14, '#6b8f4f');
+  // sign posts / paths from spawn to buildings
+  ctx.strokeStyle='rgba(196,168,120,.55)'; ctx.lineWidth=26; ctx.lineCap='round';
+  path([[WORLD_W*0.42,WORLD_H*0.55],[BUILDINGS[0].door.x,BUILDINGS[0].door.y]]);
+  path([[WORLD_W*0.42,WORLD_H*0.55],[BUILDINGS[1].door.x,BUILDINGS[1].door.y]]);
+
+  // plots
+  const near = nearestInteractable();
+  state.plots.forEach((pl,i)=>drawPlot(pl,i, near&&near.type==='plot'&&near.index===i));
+
+  // trees
+  TREES.forEach(drawTree);
+
+  // buildings
+  BUILDINGS.forEach(b=>drawBuilding(b, near && near.type===b.kind));
+
+  // player
+  drawPlayer();
+
+  ctx.restore();
+
+  // interaction prompt (screen space)
+  updatePrompt(near);
+}
+
+function drawPlot(pl,i,active){
+  const x=pl.x-TS/2, y=pl.y-TS/2;
+  roundRect(x,y,TS,TS,10,'#6f4a30');
+  roundRect(x+4,y+4,TS-8,TS-8,7,'#5a3b26');
+  if(active){ ctx.strokeStyle='#ffd54a'; ctx.lineWidth=3; strokeRound(x-2,y-2,TS+4,TS+4,12); }
+  if(pl.seedId){
+    const s=SEED_MAP[pl.seedId];
+    const ready=pl.fruits||0;
+    if(ready>0){
+      const bob=Math.sin(now()/250)*3;
+      ctx.font='30px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(s.emoji, pl.x, pl.y-2+bob);
+      // gold ready ring
+      ctx.strokeStyle='#ffd54a'; ctx.lineWidth=3;
+      ctx.beginPath(); ctx.arc(pl.x, pl.y, TS*0.55, 0, Math.PI*2); ctx.stroke();
+      // ripe-fruit count badge
+      const bx=pl.x+TS*0.34, by=pl.y-TS*0.34;
+      ctx.fillStyle='#ffd54a'; ctx.beginPath(); ctx.arc(bx,by,11,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='#2a2000'; ctx.font='700 13px Segoe UI, sans-serif';
+      ctx.fillText('×'+ready, bx, by+1);
+    } else {
+      // growing / regrowing — progress toward the soonest fruit
+      let next=Infinity, dur=REGROW_MS;
+      for(const t of pl.timers){ if(t.at<next){ next=t.at; dur=t.dur||REGROW_MS; } }
+      const pct = next===Infinity ? 1 : Math.min(1, Math.max(0, 1-(next-now())/dur));
+      ctx.font='20px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('🌱', pl.x, pl.y-2);
+      ctx.strokeStyle='rgba(0,0,0,.35)'; ctx.lineWidth=4;
+      ctx.beginPath(); ctx.arc(pl.x, pl.y, TS*0.5, 0, Math.PI*2); ctx.stroke();
+      ctx.strokeStyle='#5be08a'; ctx.lineWidth=4;
+      ctx.beginPath(); ctx.arc(pl.x, pl.y, TS*0.5, -Math.PI/2, -Math.PI/2+pct*Math.PI*2); ctx.stroke();
+    }
+  }
+}
+function drawTree(t){
+  const x=t.col*TS+TS/2, y=t.row*TS+TS*0.62;
+  ctx.fillStyle='rgba(0,0,0,.18)'; ctx.beginPath(); ctx.ellipse(x,y+14,16,7,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#6b4a2a'; ctx.fillRect(x-4,y-2,8,16);
+  ctx.fillStyle='#2f6d38'; ctx.beginPath(); ctx.arc(x,y-8,20,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#3f8a4a'; ctx.beginPath(); ctx.arc(x-8,y-4,13,0,Math.PI*2); ctx.arc(x+9,y-6,12,0,Math.PI*2); ctx.fill();
+}
+function drawBuilding(b, active){
+  // shadow
+  ctx.fillStyle='rgba(0,0,0,.2)';
+  roundRectRaw(b.x+6,b.y+10,b.w,b.h,14); ctx.fill();
+  // walls
+  const wall = b.kind==='seed' ? '#c98a4b' : '#8a5db0';
+  roundRect(b.x,b.y,b.w,b.h,14, wall);
+  // roof
+  const roof = b.kind==='seed' ? '#7d4a24' : '#5a3a80';
+  roundRect(b.x-6,b.y-14, b.w+12, b.h*0.42, 12, roof);
+  // door
+  const dw=TS*0.9, dh=TS*1.0;
+  roundRect(b.x+b.w/2-dw/2, b.y+b.h-dh, dw, dh, 8, '#3a2618');
+  // sign
+  ctx.font='30px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(b.emoji, b.x+b.w/2, b.y+b.h*0.34);
+  // label plate
+  ctx.font='700 14px Segoe UI, sans-serif';
+  const tw=ctx.measureText(b.label).width;
+  roundRect(b.x+b.w/2-tw/2-8, b.y-34, tw+16, 22, 8, active?'#ffd54a':'rgba(15,30,19,.9)');
+  ctx.fillStyle=active?'#2a2000':'#e8f5ea';
+  ctx.fillText(b.label, b.x+b.w/2, b.y-23);
+}
+function drawPlayer(){
+  const p=state.player;
+  ctx.fillStyle='rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(p.x,p.y+16,15,7,0,0,Math.PI*2); ctx.fill();
+  ctx.font='34px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(p.avatar, p.x, p.y);
+  // name tag
+  ctx.font='700 13px Segoe UI, sans-serif';
+  const tw=ctx.measureText(p.name).width;
+  roundRectRaw(p.x-tw/2-7, p.y-40, tw+14, 20, 8); ctx.fillStyle=p.color; ctx.fill();
+  ctx.fillStyle='#0c1710'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(p.name, p.x, p.y-30);
+}
+
+// canvas helpers
+function roundRectRaw(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+function roundRect(x,y,w,h,r,fill){ roundRectRaw(x,y,w,h,r); ctx.fillStyle=fill; ctx.fill(); }
+function strokeRound(x,y,w,h,r){ roundRectRaw(x,y,w,h,r); ctx.stroke(); }
+function path(pts){ ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]); ctx.stroke(); }
+
+function updatePrompt(near){
+  const el=document.getElementById('prompt');
+  if(!near || document.querySelector('.overlay.show') || !state.setupDone){ el.style.display='none'; return; }
+  let txt='';
+  if(near.type==='seed') txt=`<span class="key">E</span> Open <b>Seed Shop</b>`;
+  else if(near.type==='market') txt=`<span class="key">E</span> Open <b>Market</b>`;
+  else if(near.type==='plot'){
+    const pl=state.plots[near.index];
+    if(pl.seedId){
+      const s=SEED_MAP[pl.seedId];
+      if((pl.fruits||0)>0){
+        txt = `<span class="key">E</span> Harvest <b>${s.name}</b> — ${pl.fruits} ripe`;
+      } else {
+        const next=pl.timers.reduce((m,t)=>Math.min(m,t.at), Infinity);
+        txt = `${s.emoji} ${s.name} — next fruit in ${fmtTime((next-now())/1000)}`;
+      }
+    } else {
+      const sel=state.selectedSeed?SEED_MAP[state.selectedSeed]:null;
+      txt = sel ? `<span class="key">E</span> Plant <b>${sel.name}</b>` : `Select a seed to plant`;
+    }
+  }
+  el.innerHTML=txt; el.style.display='block';
+}
+
+// ---- Toast & log ----
+let toastTimer;
+function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'),1500); }
+let notifTimer;
+function notify(html){
+  const n=document.getElementById('notif');
+  n.innerHTML=html;
+  n.classList.add('show');
+  clearTimeout(notifTimer);
+  notifTimer=setTimeout(()=>n.classList.remove('show'), 6000);
+}
+function log(m){ logs.unshift({t:now(), msg:m}); logs=logs.slice(0,120); save(); if(document.getElementById('historyOverlay').classList.contains('show')) renderHistory(); }
+
+function timeAgo(t){
+  const s=Math.floor((now()-t)/1000);
+  if(s<10) return 'just now';
+  if(s<60) return s+'s ago';
+  const m=Math.floor(s/60); if(m<60) return m+'m ago';
+  const h=Math.floor(m/60); if(h<24) return h+'h ago';
+  const d=Math.floor(h/24); return d+'d ago';
+}
+function renderHistory(){
+  const el=document.getElementById('historyList'); el.innerHTML='';
+  if(!logs.length){ el.innerHTML='<div class="empty-note">No history yet — start farming!</div>'; return; }
+  logs.forEach(e=>{
+    const msg = typeof e==='string' ? e : e.msg;   // support old string logs
+    const t   = typeof e==='string' ? null : e.t;
+    const d=document.createElement('div'); d.className='hitem';
+    d.innerHTML=`<span>${msg}</span>${t?`<span class="when">${timeAgo(t)}</span>`:''}`;
+    el.appendChild(d);
+  });
+}
+function openHistory(){ renderHistory(); show('historyOverlay'); }
+
+// ---- Save / load ----
+function save(){ try{ localStorage.setItem('sproutWorld', JSON.stringify({...state, logs})); }catch(e){} }
+function load(){ try{ const d=JSON.parse(localStorage.getItem('sproutWorld')); if(d&&d.logs) logs=d.logs; return d; }catch(e){ return null; } }
+
+// ---- Setup modal ----
+function buildSetup(){
+  const ap=document.getElementById('avatarPick'); ap.innerHTML='';
+  let selAv=state.player.avatar||AVATARS[0];
+  AVATARS.forEach(a=>{ const d=document.createElement('div'); d.className='av'+(a===selAv?' sel':''); d.textContent=a; d.onclick=()=>{ selAv=a; ap.querySelectorAll('.av').forEach(x=>x.classList.remove('sel')); d.classList.add('sel'); }; ap.appendChild(d); });
+  const cp=document.getElementById('colorPick'); cp.innerHTML='';
+  let selCol=state.player.color||NAME_COLORS[0];
+  NAME_COLORS.forEach(c=>{ const d=document.createElement('div'); d.className='col'+(c===selCol?' sel':''); d.style.background=c; d.onclick=()=>{ selCol=c; cp.querySelectorAll('.col').forEach(x=>x.classList.remove('sel')); d.classList.add('sel'); }; cp.appendChild(d); });
+  document.getElementById('nameInput').value = state.player.name==='Farmer'?'':state.player.name;
+  document.getElementById('startBtn').onclick=()=>{
+    const nm=document.getElementById('nameInput').value.trim()||'Farmer';
+    state.player.name=nm.slice(0,16); state.player.avatar=selAv; state.player.color=selCol;
+    state.setupDone=true;
+    document.getElementById('setupOverlay').classList.remove('show');
+    renderHUD(); renderHotbar();
+    if(!logs.length) log(`🌱 <b>${state.player.name}</b> started their farm!`);
+    toast(`Welcome, ${state.player.name}! Walk with WASD / arrows.`);
+  };
+}
+
+// ---- Wire ----
+document.getElementById('forceRestock').onclick=forceRestock;
+document.getElementById('sellAll').onclick=sellAll;
+document.getElementById('histBtn').onclick=openHistory;
+document.getElementById('leafBtn').onclick=()=>{ if(state.setupDone) openLeafShop(); };
+document.getElementById('curBtn').onclick=()=>{ if(state.setupDone) openCurrency(); };
+document.getElementById('notif').onclick=()=>{ document.getElementById('notif').classList.remove('show'); if(state.setupDone) openSeedShop(); };
+document.getElementById('clearHist').onclick=()=>{ if(confirm('Clear your history? (progress is kept)')){ logs=[]; save(); renderHistory(); } };
+document.getElementById('resetBtn').onclick=()=>{ if(confirm('Reset all progress?')){ localStorage.removeItem('sproutWorld'); location.reload(); } };
+
+// init
+if(!state.shop || Object.keys(state.shop).length===0) rollStock();
+buildSetup();
+if(!state.setupDone) show('setupOverlay');
+renderHUD(); renderHotbar();
+
+// restock countdown display
+setInterval(()=>{
+  maybeRestock();
+  const rem=Math.max(0,Math.ceil((RESTOCK_MS-(now()-state.lastRestock))/1000));
+  const mm=Math.floor(rem/60), ss=String(rem%60).padStart(2,'0');
+  const el=document.getElementById('restockIn'); if(el) el.textContent=`${mm}:${ss}`;
+},400);
+
+// ---- Main loop ----
+let last=performance.now();
+function frame(t){
+  const dt=Math.min(0.05,(t-last)/1000); last=t;
+  movePlayer(dt);
+  updatePlots();
+  updateCamera(dt);
+  draw();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// Register the service worker for offline / installable PWA (only when served
+// over http(s); silently skips file:// and sandboxed embeds like previews).
+if('serviceWorker' in navigator && location.protocol.startsWith('http')){
+  window.addEventListener('load', ()=>{ navigator.serviceWorker.register('service-worker.js').catch(()=>{}); });
+}
+</script>
+</body>
+</html>
