@@ -292,7 +292,7 @@ const SEEDS = [
   { id:'celestial', name:'Celestial Rose',emoji:'🌹', rarity:'mythic',    cost:100000, grow:7200,  sell:28000,    stockChance:0.001, cap:1 },
   { id:'phoenix',   name:'Phoenix Bloom', emoji:'🔥', rarity:'mythic',    cost:140000, grow:7200,  sell:40000,    stockChance:0.001, cap:2 },
   // Exclusive — never restock; buyable only with Leaf Coins in the Leaf Shop
-  { id:'rainbow',   name:'Rainbow Bloom',  emoji:'🌈', rarity:'exclusive', cost:0, grow:300,  sell:25000,  stockChance:0, cap:6, leafCost:250 },
+  { id:'rainbow',   name:'Rainbow Bloom',  emoji:'🌈', rarity:'exclusive', cost:0, grow:300,  sell:25000,  stockChance:0, cap:6, leafCost:100 },
   { id:'starfruit', name:'Star Fruit',     emoji:'⭐', rarity:'exclusive', cost:0, grow:300,  sell:15000,  stockChance:0, cap:6, leafCost:150 },
 ];
 const REGROW_MS = 5*60*1000;   // each harvested fruit regrows in 5 minutes
@@ -723,7 +723,7 @@ function buyExclusive(id){
   log(`Bought exclusive <b>${s.name}</b> for ${s.leafCost} 🍃`);
   renderPremium(); renderHUD(); renderHotbar();
 }
-const ULTIMATE_COST = 500;   // Leaf Coins for one of every seed in the game
+const ULTIMATE_COST = 25;   // Leaf Coins for one of every seed in the game
 function buyUltimatePack(){
   if((state.leafCoins||0) < ULTIMATE_COST){ toast('Not enough Leaf Coins.'); return; }
   state.leafCoins -= ULTIMATE_COST;
