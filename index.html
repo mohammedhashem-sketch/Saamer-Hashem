@@ -748,14 +748,26 @@ function buyExclusive(id){
   log(`Bought exclusive <b>${s.name}</b> for ${s.leafCost} 🍃`);
   renderPremium(); renderHUD(); renderHotbar();
 }
-const ULTIMATE_COST = 25;   // Leaf Coins for one of every seed in the game
-function buyUltimatePack(){
-  if((state.leafCoins||0) < ULTIMATE_COST){ toast('Not enough Leaf Coins.'); return; }
-  state.leafCoins -= ULTIMATE_COST;
-  SEEDS.forEach(s=>{ state.seedInv[s.id]=(state.seedInv[s.id]||0)+1; });
-  if(!state.selectedSeed) state.selectedSeed=SEEDS[0].id;
-  toast(`🎁 Ultimate Seed Pack — one of EVERY seed!`);
-  log(`Bought the <b>Ultimate Seed Pack</b> (1 of every seed) for ${ULTIMATE_COST} 🍃`);
+// Mystery Seed Pack — pay Leaf Coins, get ONE random seed. Rarer seeds are
+// less likely; exclusives are the rarest surprise of all.
+const PACK_COST = 25;
+const PACK_WEIGHT = {common:40, rare:25, epic:16, legendary:8, mythic:4, exclusive:2};
+function randomSeed(){
+  let total=0; for(const s of SEEDS){ total += PACK_WEIGHT[s.rarity]||1; }
+  let r=Math.random()*total;
+  for(const s of SEEDS){ r -= (PACK_WEIGHT[s.rarity]||1); if(r<=0) return s; }
+  return SEEDS[0];
+}
+function buyMysteryPack(){
+  if((state.leafCoins||0) < PACK_COST){ toast('Not enough Leaf Coins.'); return; }
+  state.leafCoins -= PACK_COST;
+  const s=randomSeed();
+  state.seedInv[s.id]=(state.seedInv[s.id]||0)+1;
+  if(!state.selectedSeed) state.selectedSeed=s.id;
+  const special = RARITY_ORDER[s.rarity]>=3;
+  toast(`${special?'🌟 ':'🎁 '}You got ${s.emoji} ${s.name}!`);
+  log(`Opened a Mystery Seed Pack → <b>${s.emoji} ${s.name}</b> (${s.rarity})`);
+  notify(`${special?'🌟':'🎁'} Mystery Pack: <b>${s.emoji} ${s.name}</b>!`);
   renderPremium(); renderHUD(); renderHotbar();
 }
 function renderPremium(){
@@ -770,14 +782,14 @@ function renderPremium(){
     pk.appendChild(d);
   });
   const ex=document.getElementById('exclusiveList'); ex.innerHTML='';
-  // Ultimate Seed Pack — one of every seed in the game
-  const upAfford=(state.leafCoins||0)>=ULTIMATE_COST;
+  // Mystery Seed Pack — one RANDOM seed (could be anything, even an exclusive)
+  const upAfford=(state.leafCoins||0)>=PACK_COST;
   const up=document.createElement('div'); up.className='pack best';
-  up.innerHTML=`<span class="best-tag">Everything!</span>
+  up.innerHTML=`<span class="best-tag">Random!</span>
     <span class="leafico">🎁</span>
-    <div><div class="amt">Ultimate Seed Pack</div><div class="sub3">One of EVERY seed — all ${SEEDS.length} types, even exclusives</div></div>
-    <button class="buyleaf" ${upAfford?'':'disabled'}>🍃 ${ULTIMATE_COST}</button>`;
-  up.querySelector('.buyleaf').onclick=()=>buyUltimatePack();
+    <div><div class="amt">Mystery Seed Pack</div><div class="sub3">1 random seed — could be anything, even an exclusive! 🌟</div></div>
+    <button class="buyleaf" ${upAfford?'':'disabled'}>🍃 ${PACK_COST}</button>`;
+  up.querySelector('.buyleaf').onclick=()=>buyMysteryPack();
   ex.appendChild(up);
   SEEDS.filter(s=>s.leafCost).forEach(s=>{
     const afford=(state.leafCoins||0)>=s.leafCost;
