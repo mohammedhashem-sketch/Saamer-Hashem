@@ -23,6 +23,8 @@
   .chip.name{color:#bfe6c8}
   .chip.click{pointer-events:auto;cursor:pointer}
   .chip.click:active{background:rgba(47,125,74,.9)}
+  .chip.leaf{color:#7fe6a8;border-color:#2f7d4a}
+  .chip.cur{color:#bfe6c8}
 
   .histlist{max-height:52vh;overflow:auto;display:flex;flex-direction:column;gap:6px}
   .hitem{display:flex;justify-content:space-between;gap:10px;padding:8px 10px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;font-size:13.5px;line-height:1.4}
@@ -81,6 +83,30 @@
   .rar{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;padding:1px 6px;border-radius:6px;color:#101}
   .rar.common{background:var(--common)} .rar.rare{background:var(--rare);color:#fff}
   .rar.epic{background:var(--epic);color:#fff} .rar.legendary{background:var(--legendary)} .rar.mythic{background:var(--mythic);color:#fff}
+  .rar.exclusive{background:linear-gradient(90deg,#ff4d7d,#ffab38,#5be08a,#4aa3ff);color:#fff}
+
+  /* Leaf Shop (premium) */
+  .disclaimer{background:rgba(255,213,74,.12);border:1px solid var(--gold);border-radius:10px;padding:9px 12px;font-size:12px;color:#ffe9a8;margin-bottom:14px;line-height:1.5}
+  .packs{display:flex;flex-direction:column;gap:9px;margin-bottom:6px}
+  .pack{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--panel2);position:relative}
+  .pack.best{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold) inset}
+  .pack .leafico{font-size:30px}
+  .pack .amt{font-weight:800;font-size:17px;color:#7fe6a8}
+  .pack .sub3{font-size:11.5px;color:var(--muted)}
+  .pack .best-tag{position:absolute;top:-9px;left:12px;background:var(--gold);color:#2a2000;font-size:10px;font-weight:800;padding:1px 8px;border-radius:8px;text-transform:uppercase}
+  .buymoney{margin-left:auto;background:#2f7d4a;border:none;color:#fff;font-weight:800;padding:10px 14px;border-radius:10px;cursor:pointer;font-size:14px;white-space:nowrap}
+  .buymoney:hover{background:#369155}
+  .sectlabel{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:16px 0 8px;font-weight:700}
+  .buyleaf{margin-left:auto;background:#2f7d4a;border:none;color:#fff;font-weight:800;padding:9px 13px;border-radius:10px;cursor:pointer;font-size:13px;white-space:nowrap;display:flex;align-items:center;gap:4px}
+  .buyleaf:hover{background:#369155} .buyleaf:disabled{background:#3a4a40;color:#7d908a;cursor:not-allowed}
+
+  /* Currency picker */
+  .curlist{display:grid;grid-template-columns:1fr 1fr;gap:7px;max-height:56vh;overflow:auto}
+  @media(max-width:420px){.curlist{grid-template-columns:1fr}}
+  .curitem{display:flex;align-items:center;gap:8px;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);cursor:pointer;font-size:13.5px}
+  .curitem:hover{border-color:var(--rare)}
+  .curitem.sel{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold) inset}
+  .curitem .code{font-weight:800} .curitem .cn{color:var(--muted);font-size:11px}
   .btn{background:#2f7d4a;border:none;color:#fff;font-weight:700;padding:8px 12px;border-radius:10px;cursor:pointer;font-size:13px;white-space:nowrap}
   .btn:hover{background:#369155}
   .btn:disabled{background:#3a4a40;color:#7d908a;cursor:not-allowed}
@@ -112,6 +138,8 @@
     <div class="chip click" id="histBtn">📜 History</div>
   </div>
   <div class="grp">
+    <div class="chip click cur" id="curBtn">💱 <span id="hudCur">USD</span></div>
+    <div class="chip click leaf" id="leafBtn">🍃 <span id="hudLeaf">0</span></div>
     <div class="chip coins">🪙 <span id="hudCoins">0</span></div>
     <div class="chip">🌾 <span id="hudCrops">0</span> crops</div>
   </div>
@@ -191,6 +219,30 @@
   </div>
 </div>
 
+<!-- Leaf Shop (premium) -->
+<div class="overlay" id="leafOverlay">
+  <div class="modal">
+    <span class="x" data-close="leafOverlay">✕</span>
+    <h2>🍃 Leaf Shop</h2>
+    <p class="sub">Leaf Coins are an exclusive premium currency. Buy a pack, then spend them on exclusive plants below.</p>
+    <div class="disclaimer">🎮 <b>Demo store.</b> This is a game — no real money is charged and no payment details are collected. Buying a pack instantly grants the Leaf Coins so you can try the feature. Prices shown in your selected currency.</div>
+    <div class="sectlabel">Leaf Coin packs</div>
+    <div class="packs" id="packList"></div>
+    <div class="sectlabel">Exclusive plants — pay with 🍃</div>
+    <div id="exclusiveList"></div>
+  </div>
+</div>
+
+<!-- Currency picker -->
+<div class="overlay" id="currencyOverlay">
+  <div class="modal">
+    <span class="x" data-close="currencyOverlay">✕</span>
+    <h2>💱 Choose your currency</h2>
+    <p class="sub">Pick your country's currency — Leaf Shop prices convert to it. Rates are approximate and fixed for the demo.</p>
+    <div class="curlist" id="curList"></div>
+  </div>
+</div>
+
 <script>
 /* ============================================================
    Sprout Tycoon — walk-around garden world
@@ -213,10 +265,42 @@ const SEEDS = [
   { id:'dragonfruit',name:'Dragon Fruit', emoji:'🐉', rarity:'legendary', cost:16000,  grow:3600,  sell:7500,     stockChance:0.010, cap:4 },
   { id:'celestial', name:'Celestial Rose',emoji:'🌹', rarity:'mythic',    cost:100000, grow:7200,  sell:28000,    stockChance:0.001, cap:1 },
   { id:'phoenix',   name:'Phoenix Bloom', emoji:'🔥', rarity:'mythic',    cost:140000, grow:7200,  sell:40000,    stockChance:0.001, cap:2 },
+  // Exclusive — never restock; buyable only with Leaf Coins in the Leaf Shop
+  { id:'rainbow',   name:'Rainbow Bloom',  emoji:'🌈', rarity:'exclusive', cost:0, grow:300,  sell:25000,  stockChance:0, cap:6, leafCost:25 },
+  { id:'starfruit', name:'Star Fruit',     emoji:'⭐', rarity:'exclusive', cost:0, grow:300,  sell:15000,  stockChance:0, cap:6, leafCost:12 },
 ];
 const REGROW_MS = 5*60*1000;   // each harvested fruit regrows in 5 minutes
 const SEED_MAP = Object.fromEntries(SEEDS.map(s=>[s.id,s]));
-const RARITY_ORDER = {common:0,rare:1,epic:2,legendary:3,mythic:4};
+const RARITY_ORDER = {common:0,rare:1,epic:2,legendary:3,mythic:4,exclusive:5};
+
+// Premium currency: Leaf Coin packs (USD base price) and country currencies
+const LEAF_PACKS = [
+  { leaf:50,   usd:10,  tag:'Starter' },
+  { leaf:500,  usd:75,  tag:'Value', best:true },
+  { leaf:1000, usd:500, tag:'Mega' },
+];
+const CURRENCIES = {
+  USD:{sym:'$',   rate:1,    dec:2, flag:'🇺🇸', name:'US Dollar'},
+  EUR:{sym:'€',   rate:0.92, dec:2, flag:'🇪🇺', name:'Euro'},
+  GBP:{sym:'£',   rate:0.79, dec:2, flag:'🇬🇧', name:'British Pound'},
+  JPY:{sym:'¥',   rate:155,  dec:0, flag:'🇯🇵', name:'Japanese Yen'},
+  CAD:{sym:'C$',  rate:1.37, dec:2, flag:'🇨🇦', name:'Canadian Dollar'},
+  AUD:{sym:'A$',  rate:1.52, dec:2, flag:'🇦🇺', name:'Australian Dollar'},
+  INR:{sym:'₹',   rate:83,   dec:0, flag:'🇮🇳', name:'Indian Rupee'},
+  CNY:{sym:'¥',   rate:7.2,  dec:2, flag:'🇨🇳', name:'Chinese Yuan'},
+  BRL:{sym:'R$',  rate:5.1,  dec:2, flag:'🇧🇷', name:'Brazilian Real'},
+  MXN:{sym:'MX$', rate:17,   dec:2, flag:'🇲🇽', name:'Mexican Peso'},
+  AED:{sym:'AED ',rate:3.67, dec:2, flag:'🇦🇪', name:'UAE Dirham'},
+  SAR:{sym:'SAR ',rate:3.75, dec:2, flag:'🇸🇦', name:'Saudi Riyal'},
+  NGN:{sym:'₦',   rate:1500, dec:0, flag:'🇳🇬', name:'Nigerian Naira'},
+  ZAR:{sym:'R',   rate:18.5, dec:2, flag:'🇿🇦', name:'South African Rand'},
+  KRW:{sym:'₩',   rate:1350, dec:0, flag:'🇰🇷', name:'South Korean Won'},
+  TRY:{sym:'₺',   rate:32,   dec:2, flag:'🇹🇷', name:'Turkish Lira'},
+  CHF:{sym:'CHF ',rate:0.90, dec:2, flag:'🇨🇭', name:'Swiss Franc'},
+  SGD:{sym:'S$',  rate:1.35, dec:2, flag:'🇸🇬', name:'Singapore Dollar'},
+  PKR:{sym:'₨',   rate:278,  dec:0, flag:'🇵🇰', name:'Pakistani Rupee'},
+  EGP:{sym:'E£',  rate:48,   dec:2, flag:'🇪🇬', name:'Egyptian Pound'},
+};
 
 const AVATARS = ['🧑‍🌾','👩‍🌾','👨‍🌾','🧙','🤠','🧝','👷','🐰','🦊','🐻'];
 const NAME_COLORS = ['#5be08a','#4aa3ff','#ff9f38','#ff4d7d','#b56cff','#ffd54a','#ff6b6b','#57e0d0'];
@@ -256,6 +340,8 @@ let state = load() || {
   setupDone:false,
   player:{ x:WORLD_W*0.42, y:WORLD_H*0.55, name:'Farmer', avatar:'🧑‍🌾', color:'#5be08a' },
   coins:30,
+  leafCoins:0,  // premium currency
+  currency:'USD',
   seedInv:{},   // seeds to plant
   cropInv:{},   // harvested crops to sell
   plots:PLOTS.map(p=>({seedId:null,fruits:0,timers:[]})),
@@ -275,6 +361,13 @@ function fmtTime(sec){
   if(h>0) return m>0?`${h}h ${m}m`:`${h}h`;
   if(m>0) return s>0?`${m}m ${s}s`:`${m}m`;
   return `${s}s`;
+}
+// Convert a USD price into the player's selected currency, formatted with symbol.
+function money(usd){
+  const c=CURRENCIES[state.currency]||CURRENCIES.USD;
+  const v=usd*c.rate;
+  const s=v.toLocaleString(undefined,{minimumFractionDigits:c.dec, maximumFractionDigits:c.dec});
+  return c.sym+s;
 }
 
 // Build a fresh plot object, migrating any saved data (old or new format).
@@ -517,16 +610,72 @@ function sellAll(){
   renderMarket(); renderHUD();
 }
 
+// ---- Premium (Leaf Coins) ----
+function buyLeafPack(i){
+  const p=LEAF_PACKS[i]; if(!p) return;
+  // DEMO ONLY: no real payment is processed; instantly grant the coins.
+  state.leafCoins=(state.leafCoins||0)+p.leaf;
+  toast(`+${p.leaf} 🍃 Leaf Coins (demo)`);
+  log(`🍃 Bought <b>${p.leaf} Leaf Coins</b> pack (${money(p.usd)}, demo — no real charge)`);
+  renderPremium(); renderHUD();
+}
+function buyExclusive(id){
+  const s=SEED_MAP[id];
+  if((state.leafCoins||0) < s.leafCost){ toast('Not enough Leaf Coins.'); return; }
+  state.leafCoins-=s.leafCost;
+  state.seedInv[id]=(state.seedInv[id]||0)+1;
+  if(!state.selectedSeed) state.selectedSeed=id;
+  toast(`Bought ${s.emoji} ${s.name}!`);
+  log(`Bought exclusive <b>${s.name}</b> for ${s.leafCost} 🍃`);
+  renderPremium(); renderHUD(); renderHotbar();
+}
+function renderPremium(){
+  const pk=document.getElementById('packList'); pk.innerHTML='';
+  LEAF_PACKS.forEach((p,i)=>{
+    const d=document.createElement('div'); d.className='pack'+(p.best?' best':'');
+    d.innerHTML=`${p.best?'<span class="best-tag">Best value</span>':''}
+      <span class="leafico">🍃</span>
+      <div><div class="amt">${p.leaf.toLocaleString()} Leaf Coins</div><div class="sub3">${p.tag} pack</div></div>
+      <button class="buymoney">${money(p.usd)}</button>`;
+    d.querySelector('.buymoney').onclick=()=>buyLeafPack(i);
+    pk.appendChild(d);
+  });
+  const ex=document.getElementById('exclusiveList'); ex.innerHTML='';
+  SEEDS.filter(s=>s.leafCost).forEach(s=>{
+    const afford=(state.leafCoins||0)>=s.leafCost;
+    const d=document.createElement('div'); d.className='row';
+    d.innerHTML=`<div class="ico">${s.emoji}</div>
+      <div class="info">
+        <div class="nm">${s.name} <span class="rar exclusive">exclusive</span></div>
+        <div class="sub2">Matures ${fmtTime(s.grow)} · holds ×${s.cap}, regrows 5m · sells ${s.sell} 🪙</div>
+      </div>
+      <button class="buyleaf" ${afford?'':'disabled'}>🍃 ${s.leafCost}</button>`;
+    d.querySelector('.buyleaf').onclick=()=>buyExclusive(s.id);
+    ex.appendChild(d);
+  });
+}
+function renderCurrency(){
+  const el=document.getElementById('curList'); el.innerHTML='';
+  Object.entries(CURRENCIES).forEach(([code,c])=>{
+    const d=document.createElement('div'); d.className='curitem'+(state.currency===code?' sel':'');
+    d.innerHTML=`<span style="font-size:18px">${c.flag}</span><span class="code">${code}</span> <span class="cn">${c.name}</span>`;
+    d.onclick=()=>{ state.currency=code; renderCurrency(); renderPremium(); renderHUD(); document.getElementById('currencyOverlay').classList.remove('show'); toast(`Currency set to ${code}`); };
+    el.appendChild(d);
+  });
+}
+
 // ---- Panels ----
 function openSeedShop(){ renderShop(); show('seedOverlay'); }
 function openMarket(){ renderMarket(); show('marketOverlay'); }
+function openLeafShop(){ renderPremium(); show('leafOverlay'); }
+function openCurrency(){ renderCurrency(); show('currencyOverlay'); }
 function show(id){ document.getElementById(id).classList.add('show'); }
 function closeAll(){ document.querySelectorAll('.overlay.show').forEach(o=>{ if(o.id!=='setupOverlay') o.classList.remove('show'); }); }
 document.querySelectorAll('[data-close]').forEach(x=>x.onclick=()=>document.getElementById(x.dataset.close).classList.remove('show'));
 
 function renderShop(){
   const el=document.getElementById('shopList'); el.innerHTML='';
-  [...SEEDS].sort((a,b)=>RARITY_ORDER[a.rarity]-RARITY_ORDER[b.rarity]).forEach(s=>{
+  SEEDS.filter(s=>!s.leafCost).sort((a,b)=>RARITY_ORDER[a.rarity]-RARITY_ORDER[b.rarity]).forEach(s=>{
     const inStock=state.shop[s.id]>0;
     const pct=s.stockChance*100;
     const chance = pct>=1?pct.toFixed(0)+'%':pct.toFixed(1)+'%';
@@ -571,6 +720,8 @@ function renderHUD(){
   document.getElementById('hudCoins').textContent = Math.floor(state.coins).toLocaleString();
   document.getElementById('hudLevel').textContent = lvl;
   document.getElementById('hudCrops').textContent = Object.values(state.cropInv).reduce((a,b)=>a+b,0);
+  document.getElementById('hudLeaf').textContent = Math.floor(state.leafCoins||0).toLocaleString();
+  document.getElementById('hudCur').textContent = state.currency||'USD';
   save();
 }
 function renderHotbar(){
@@ -800,6 +951,8 @@ function buildSetup(){
 document.getElementById('forceRestock').onclick=forceRestock;
 document.getElementById('sellAll').onclick=sellAll;
 document.getElementById('histBtn').onclick=openHistory;
+document.getElementById('leafBtn').onclick=()=>{ if(state.setupDone) openLeafShop(); };
+document.getElementById('curBtn').onclick=()=>{ if(state.setupDone) openCurrency(); };
 document.getElementById('notif').onclick=()=>{ document.getElementById('notif').classList.remove('show'); if(state.setupDone) openSeedShop(); };
 document.getElementById('clearHist').onclick=()=>{ if(confirm('Clear your history? (progress is kept)')){ logs=[]; save(); renderHistory(); } };
 document.getElementById('resetBtn').onclick=()=>{ if(confirm('Reset all progress?')){ localStorage.removeItem('sproutWorld'); location.reload(); } };
