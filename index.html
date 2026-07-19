@@ -195,16 +195,16 @@ const SEEDS = [
   { id:'carrot',    name:'Carrot',        emoji:'🥕', rarity:'common',    cost:10,    grow:8,   sell:16,     stockChance:1.00, yield:1 },
   { id:'potato',    name:'Potato',        emoji:'🥔', rarity:'common',    cost:14,    grow:10,  sell:22,     stockChance:0.90, yield:1 },
   { id:'wheat',     name:'Wheat',         emoji:'🌾', rarity:'common',    cost:8,     grow:6,   sell:12,     stockChance:1.00, yield:1 },
-  { id:'strawberry',name:'Strawberry',    emoji:'🍓', rarity:'rare',      cost:120,    grow:16,  sell:210,      stockChance:0.35, yield:1 },
-  { id:'tomato',    name:'Tomato',        emoji:'🍅', rarity:'rare',      cost:160,    grow:18,  sell:290,      stockChance:0.30, yield:1 },
-  { id:'corn',      name:'Corn',          emoji:'🌽', rarity:'rare',      cost:220,    grow:22,  sell:400,      stockChance:0.25, yield:1 },
-  { id:'watermelon',name:'Watermelon',    emoji:'🍉', rarity:'epic',      cost:1200,   grow:35,  sell:800,      stockChance:0.10, yield:2 },
-  { id:'grapes',    name:'Grapes',        emoji:'🍇', rarity:'epic',      cost:1500,   grow:40,  sell:1000,     stockChance:0.10, yield:2 },
-  { id:'pumpkin',   name:'Pumpkin',       emoji:'🎃', rarity:'epic',      cost:1800,   grow:45,  sell:1200,     stockChance:0.08, yield:2 },
-  { id:'goldapple', name:'Golden Apple',  emoji:'🍏', rarity:'legendary', cost:12000,  grow:70,  sell:5500,     stockChance:0.010, yield:3 },
-  { id:'dragonfruit',name:'Dragon Fruit', emoji:'🐉', rarity:'legendary', cost:16000,  grow:80,  sell:7500,     stockChance:0.010, yield:3 },
-  { id:'celestial', name:'Celestial Rose',emoji:'🌹', rarity:'mythic',    cost:100000, grow:120, sell:28000,    stockChance:0.001, yield:5 },
-  { id:'phoenix',   name:'Phoenix Bloom', emoji:'🔥', rarity:'mythic',    cost:140000, grow:150, sell:40000,    stockChance:0.001, yield:5 },
+  { id:'strawberry',name:'Strawberry',    emoji:'🍓', rarity:'rare',      cost:120,    grow:600,   sell:210,      stockChance:0.35, yield:1 },
+  { id:'tomato',    name:'Tomato',        emoji:'🍅', rarity:'rare',      cost:160,    grow:600,   sell:290,      stockChance:0.30, yield:1 },
+  { id:'corn',      name:'Corn',          emoji:'🌽', rarity:'rare',      cost:220,    grow:600,   sell:400,      stockChance:0.25, yield:1 },
+  { id:'watermelon',name:'Watermelon',    emoji:'🍉', rarity:'epic',      cost:1200,   grow:1800,  sell:800,      stockChance:0.10, yield:2 },
+  { id:'grapes',    name:'Grapes',        emoji:'🍇', rarity:'epic',      cost:1500,   grow:1800,  sell:1000,     stockChance:0.10, yield:2 },
+  { id:'pumpkin',   name:'Pumpkin',       emoji:'🎃', rarity:'epic',      cost:1800,   grow:1800,  sell:1200,     stockChance:0.08, yield:2 },
+  { id:'goldapple', name:'Golden Apple',  emoji:'🍏', rarity:'legendary', cost:12000,  grow:3600,  sell:5500,     stockChance:0.010, yield:3 },
+  { id:'dragonfruit',name:'Dragon Fruit', emoji:'🐉', rarity:'legendary', cost:16000,  grow:3600,  sell:7500,     stockChance:0.010, yield:3 },
+  { id:'celestial', name:'Celestial Rose',emoji:'🌹', rarity:'mythic',    cost:100000, grow:7200,  sell:28000,    stockChance:0.001, yield:5 },
+  { id:'phoenix',   name:'Phoenix Bloom', emoji:'🔥', rarity:'mythic',    cost:140000, grow:7200,  sell:40000,    stockChance:0.001, yield:5 },
 ];
 const SEED_MAP = Object.fromEntries(SEEDS.map(s=>[s.id,s]));
 const RARITY_ORDER = {common:0,rare:1,epic:2,legendary:3,mythic:4};
@@ -259,6 +259,14 @@ let state = load() || {
 state.plots = PLOTS.map((p,i)=>({x:p.x,y:p.y, seedId:state.plots[i]?.seedId||null, plantedAt:state.plots[i]?.plantedAt||0}));
 
 function now(){ return Date.now(); }
+// Format a duration in seconds as "2h", "1h 5m", "30m", "45s", etc.
+function fmtTime(sec){
+  sec=Math.max(0,Math.ceil(sec));
+  const h=Math.floor(sec/3600), m=Math.floor((sec%3600)/60), s=sec%60;
+  if(h>0) return m>0?`${h}h ${m}m`:`${h}h`;
+  if(m>0) return s>0?`${m}m ${s}s`:`${m}m`;
+  return `${s}s`;
+}
 
 // ---- Canvas setup ----
 const cv = document.getElementById('cv');
@@ -381,7 +389,7 @@ function handlePlot(i){
       toast(`Harvested ${y}× ${s.emoji} ${s.name}!`);
       log(`Harvested <b>${y}× ${s.name}</b>`);
     } else {
-      toast(`${s.name} growing… ${Math.ceil(s.grow-elapsed)}s left`);
+      toast(`${s.name} growing… ${fmtTime(s.grow-elapsed)} left`);
     }
   } else {
     const id=state.selectedSeed;
@@ -469,7 +477,7 @@ function renderShop(){
     d.innerHTML=`<div class="ico">${s.emoji}</div>
       <div class="info">
         <div class="nm">${s.name} <span class="rar ${s.rarity}">${s.rarity}</span></div>
-        <div class="sub2">Grows ${s.grow}s · stock ${chance}${yieldTxt}</div>
+        <div class="sub2">Grows ${fmtTime(s.grow)} · stock ${chance}${yieldTxt}</div>
         <div class="stockline" style="color:${inStock?'var(--common)':'#c26'}">${inStock?('In stock ×'+state.shop[s.id]):'Out of stock'}</div>
       </div>
       <button class="btn" ${(!inStock||state.coins<s.cost)?'disabled':''}>${s.cost} 🪙</button>`;
@@ -652,7 +660,7 @@ function updatePrompt(near){
     const pl=state.plots[near.index];
     if(pl.seedId){
       const s=SEED_MAP[pl.seedId]; const left=Math.ceil(s.grow-(now()-pl.plantedAt)/1000);
-      txt = left<=0 ? `<span class="key">E</span> Harvest <b>${s.name}</b> ×${s.yield}` : `${s.emoji} ${s.name} — ${left}s left`;
+      txt = left<=0 ? `<span class="key">E</span> Harvest <b>${s.name}</b> ×${s.yield}` : `${s.emoji} ${s.name} — ${fmtTime(left)} left`;
     } else {
       const sel=state.selectedSeed?SEED_MAP[state.selectedSeed]:null;
       txt = sel ? `<span class="key">E</span> Plant <b>${sel.name}</b>` : `Select a seed to plant`;
