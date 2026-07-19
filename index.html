@@ -190,22 +190,24 @@
    ============================================================ */
 
 // ---- Seed catalog ----
-// yield = crops produced per harvest (multi-harvest for high rarities)
+// Plants are permanent: once planted they mature over `grow` (seconds), come up
+// with `cap` ripe fruit, and each fruit you harvest regrows in REGROW_MS (5 min).
 const SEEDS = [
-  { id:'carrot',    name:'Carrot',        emoji:'🥕', rarity:'common',    cost:10,    grow:8,   sell:16,     stockChance:1.00, yield:1 },
-  { id:'potato',    name:'Potato',        emoji:'🥔', rarity:'common',    cost:14,    grow:10,  sell:22,     stockChance:0.90, yield:1 },
-  { id:'wheat',     name:'Wheat',         emoji:'🌾', rarity:'common',    cost:8,     grow:6,   sell:12,     stockChance:1.00, yield:1 },
-  { id:'strawberry',name:'Strawberry',    emoji:'🍓', rarity:'rare',      cost:120,    grow:600,   sell:210,      stockChance:0.35, yield:1 },
-  { id:'tomato',    name:'Tomato',        emoji:'🍅', rarity:'rare',      cost:160,    grow:600,   sell:290,      stockChance:0.30, yield:1 },
-  { id:'corn',      name:'Corn',          emoji:'🌽', rarity:'rare',      cost:220,    grow:600,   sell:400,      stockChance:0.25, yield:1 },
-  { id:'watermelon',name:'Watermelon',    emoji:'🍉', rarity:'epic',      cost:1200,   grow:1800,  sell:800,      stockChance:0.10, yield:2 },
-  { id:'grapes',    name:'Grapes',        emoji:'🍇', rarity:'epic',      cost:1500,   grow:1800,  sell:1000,     stockChance:0.10, yield:2 },
-  { id:'pumpkin',   name:'Pumpkin',       emoji:'🎃', rarity:'epic',      cost:1800,   grow:1800,  sell:1200,     stockChance:0.08, yield:2 },
-  { id:'goldapple', name:'Golden Apple',  emoji:'🍏', rarity:'legendary', cost:12000,  grow:3600,  sell:5500,     stockChance:0.010, yield:3 },
-  { id:'dragonfruit',name:'Dragon Fruit', emoji:'🐉', rarity:'legendary', cost:16000,  grow:3600,  sell:7500,     stockChance:0.010, yield:3 },
-  { id:'celestial', name:'Celestial Rose',emoji:'🌹', rarity:'mythic',    cost:100000, grow:7200,  sell:28000,    stockChance:0.001, yield:5 },
-  { id:'phoenix',   name:'Phoenix Bloom', emoji:'🔥', rarity:'mythic',    cost:140000, grow:7200,  sell:40000,    stockChance:0.001, yield:5 },
+  { id:'carrot',    name:'Carrot',        emoji:'🥕', rarity:'common',    cost:10,    grow:8,   sell:16,     stockChance:1.00, cap:3 },
+  { id:'potato',    name:'Potato',        emoji:'🥔', rarity:'common',    cost:14,    grow:10,  sell:22,     stockChance:0.90, cap:3 },
+  { id:'wheat',     name:'Wheat',         emoji:'🌾', rarity:'common',    cost:8,     grow:6,   sell:12,     stockChance:1.00, cap:3 },
+  { id:'strawberry',name:'Strawberry',    emoji:'🍓', rarity:'rare',      cost:120,    grow:600,   sell:210,      stockChance:0.35, cap:5 },
+  { id:'tomato',    name:'Tomato',        emoji:'🍅', rarity:'rare',      cost:160,    grow:600,   sell:290,      stockChance:0.30, cap:5 },
+  { id:'corn',      name:'Corn',          emoji:'🌽', rarity:'rare',      cost:220,    grow:600,   sell:400,      stockChance:0.25, cap:5 },
+  { id:'watermelon',name:'Watermelon',    emoji:'🍉', rarity:'epic',      cost:1200,   grow:1800,  sell:800,      stockChance:0.10, cap:8 },
+  { id:'grapes',    name:'Grapes',        emoji:'🍇', rarity:'epic',      cost:1500,   grow:1800,  sell:1000,     stockChance:0.10, cap:8 },
+  { id:'pumpkin',   name:'Pumpkin',       emoji:'🎃', rarity:'epic',      cost:1800,   grow:1800,  sell:1200,     stockChance:0.08, cap:8 },
+  { id:'goldapple', name:'Golden Apple',  emoji:'🍏', rarity:'legendary', cost:12000,  grow:3600,  sell:5500,     stockChance:0.010, cap:4 },
+  { id:'dragonfruit',name:'Dragon Fruit', emoji:'🐉', rarity:'legendary', cost:16000,  grow:3600,  sell:7500,     stockChance:0.010, cap:4 },
+  { id:'celestial', name:'Celestial Rose',emoji:'🌹', rarity:'mythic',    cost:100000, grow:7200,  sell:28000,    stockChance:0.001, cap:1 },
+  { id:'phoenix',   name:'Phoenix Bloom', emoji:'🔥', rarity:'mythic',    cost:140000, grow:7200,  sell:40000,    stockChance:0.001, cap:2 },
 ];
+const REGROW_MS = 5*60*1000;   // each harvested fruit regrows in 5 minutes
 const SEED_MAP = Object.fromEntries(SEEDS.map(s=>[s.id,s]));
 const RARITY_ORDER = {common:0,rare:1,epic:2,legendary:3,mythic:4};
 
@@ -249,14 +251,14 @@ let state = load() || {
   coins:30,
   seedInv:{},   // seeds to plant
   cropInv:{},   // harvested crops to sell
-  plots:PLOTS.map(p=>({seedId:null,plantedAt:0})),
+  plots:PLOTS.map(p=>({seedId:null,fruits:0,timers:[]})),
   shop:{},
   lastRestock:Date.now(),
   selectedSeed:null,
   xp:0,
 };
-// migrate plot positions onto saved plot data
-state.plots = PLOTS.map((p,i)=>({x:p.x,y:p.y, seedId:state.plots[i]?.seedId||null, plantedAt:state.plots[i]?.plantedAt||0}));
+// migrate plot positions + shape onto saved plot data
+state.plots = PLOTS.map((p,i)=>normalizePlot(p, state.plots[i]));
 
 function now(){ return Date.now(); }
 // Format a duration in seconds as "2h", "1h 5m", "30m", "45s", etc.
@@ -266,6 +268,43 @@ function fmtTime(sec){
   if(h>0) return m>0?`${h}h ${m}m`:`${h}h`;
   if(m>0) return s>0?`${m}m ${s}s`:`${m}m`;
   return `${s}s`;
+}
+
+// Build a fresh plot object, migrating any saved data (old or new format).
+function normalizePlot(pos, saved){
+  const pl = { x:pos.x, y:pos.y, seedId:null, fruits:0, timers:[] };
+  if(saved && saved.seedId){
+    pl.seedId = saved.seedId;
+    const s = SEED_MAP[saved.seedId];
+    if(!s){ pl.seedId=null; return pl; }
+    if(Array.isArray(saved.timers)){
+      // already new format
+      pl.fruits = Math.min(saved.fruits||0, s.cap);
+      pl.timers = saved.timers.filter(t=>t&&typeof t.at==='number').map(t=>({at:t.at, dur:t.dur||REGROW_MS}));
+    } else {
+      // old format: {seedId, plantedAt} — treat as initial growth of a full plant
+      const readyAt = (saved.plantedAt||now()) + s.grow*1000;
+      pl.fruits = 0;
+      pl.timers = Array.from({length:s.cap}, ()=>({at:readyAt, dur:s.grow*1000}));
+    }
+  }
+  return pl;
+}
+
+// Advance every plant: mature ripe fruit, then keep empty slots regrowing.
+function updatePlots(){
+  const t = now();
+  for(const pl of state.plots){
+    if(!pl.seedId) continue;
+    const cap = SEED_MAP[pl.seedId].cap;
+    if(!pl.timers) pl.timers=[];
+    for(let i=pl.timers.length-1;i>=0;i--){
+      if(pl.timers[i].at<=t){ pl.fruits=(pl.fruits||0)+1; pl.timers.splice(i,1); }
+    }
+    if(pl.fruits>cap) pl.fruits=cap;
+    // any slot that is neither ripe nor already regrowing starts a 5-min regrow
+    while((pl.fruits||0)+pl.timers.length < cap){ pl.timers.push({at:t+REGROW_MS, dur:REGROW_MS}); }
+  }
 }
 
 // ---- Canvas setup ----
@@ -377,27 +416,33 @@ function tryInteract(){
   else if(it.type==='plot'){ handlePlot(it.index); }
 }
 function handlePlot(i){
+  updatePlots();
   const pl=state.plots[i];
   if(pl.seedId){
     const s=SEED_MAP[pl.seedId];
-    const elapsed=(now()-pl.plantedAt)/1000;
-    if(elapsed>=s.grow){
-      const y=s.yield;
-      state.cropInv[s.id]=(state.cropInv[s.id]||0)+y;
-      state.xp += Math.round(s.sell*y/10);
-      pl.seedId=null; pl.plantedAt=0;
-      toast(`Harvested ${y}× ${s.emoji} ${s.name}!`);
-      log(`Harvested <b>${y}× ${s.name}</b>`);
+    if(pl.fruits>0){
+      // harvest every ripe fruit; each picked slot immediately starts regrowing
+      const n=pl.fruits; pl.fruits=0;
+      state.cropInv[s.id]=(state.cropInv[s.id]||0)+n;
+      state.xp += Math.round(s.sell*n/10);
+      updatePlots();   // queue the 5-min regrow timers for the emptied slots
+      toast(`Harvested ${n}× ${s.emoji} ${s.name}!`);
+      log(`Harvested <b>${n}× ${s.name}</b> (regrows in 5m)`);
     } else {
-      toast(`${s.name} growing… ${fmtTime(s.grow-elapsed)} left`);
+      const next=pl.timers.reduce((m,t)=>Math.min(m,t.at), Infinity);
+      const left=(next-now())/1000;
+      toast(`${s.name} — next fruit in ${fmtTime(left)}`);
     }
   } else {
     const id=state.selectedSeed;
     if(!id || !state.seedInv[id]){ toast('Select a seed in your hotbar first!'); return; }
+    const s=SEED_MAP[id];
     state.seedInv[id]-=1; if(state.seedInv[id]<=0){ delete state.seedInv[id]; }
-    pl.seedId=id; pl.plantedAt=now();
-    toast(`Planted ${SEED_MAP[id].emoji} ${SEED_MAP[id].name}`);
-    log(`Planted a <b>${SEED_MAP[id].name}</b>`);
+    const readyAt=now()+s.grow*1000;
+    pl.seedId=id; pl.fruits=0;
+    pl.timers=Array.from({length:s.cap}, ()=>({at:readyAt, dur:s.grow*1000}));
+    toast(`Planted ${s.emoji} ${s.name} — ${s.cap} fruit in ${fmtTime(s.grow)}`);
+    log(`Planted a <b>${s.name}</b> (holds ${s.cap}, regrows forever)`);
     if(!state.seedInv[id]) state.selectedSeed = Object.keys(state.seedInv)[0]||null;
   }
   renderHUD(); renderHotbar();
@@ -471,13 +516,12 @@ function renderShop(){
     const inStock=state.shop[s.id]>0;
     const pct=s.stockChance*100;
     const chance = pct>=1?pct.toFixed(0)+'%':pct.toFixed(1)+'%';
-    const yieldTxt = s.yield>1?` · harvest ×${s.yield}`:'';
     const d=document.createElement('div');
     d.className='row'+(inStock?'':' out');
     d.innerHTML=`<div class="ico">${s.emoji}</div>
       <div class="info">
         <div class="nm">${s.name} <span class="rar ${s.rarity}">${s.rarity}</span></div>
-        <div class="sub2">Grows ${fmtTime(s.grow)} · stock ${chance}${yieldTxt}</div>
+        <div class="sub2">Matures ${fmtTime(s.grow)} · holds ×${s.cap}, regrows 5m · sells ${s.sell} 🪙 · stock ${chance}</div>
         <div class="stockline" style="color:${inStock?'var(--common)':'#c26'}">${inStock?('In stock ×'+state.shop[s.id]):'Out of stock'}</div>
       </div>
       <button class="btn" ${(!inStock||state.coins<s.cost)?'disabled':''}>${s.cost} 🪙</button>`;
@@ -580,22 +624,28 @@ function drawPlot(pl,i,active){
   if(active){ ctx.strokeStyle='#ffd54a'; ctx.lineWidth=3; strokeRound(x-2,y-2,TS+4,TS+4,12); }
   if(pl.seedId){
     const s=SEED_MAP[pl.seedId];
-    const elapsed=(now()-pl.plantedAt)/1000;
-    const pct=Math.min(1,elapsed/s.grow);
-    if(pct>=1){
+    const ready=pl.fruits||0;
+    if(ready>0){
       const bob=Math.sin(now()/250)*3;
       ctx.font='30px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
       ctx.fillText(s.emoji, pl.x, pl.y-2+bob);
-      // ready ring
+      // gold ready ring
       ctx.strokeStyle='#ffd54a'; ctx.lineWidth=3;
       ctx.beginPath(); ctx.arc(pl.x, pl.y, TS*0.55, 0, Math.PI*2); ctx.stroke();
+      // ripe-fruit count badge
+      const bx=pl.x+TS*0.34, by=pl.y-TS*0.34;
+      ctx.fillStyle='#ffd54a'; ctx.beginPath(); ctx.arc(bx,by,11,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='#2a2000'; ctx.font='700 13px Segoe UI, sans-serif';
+      ctx.fillText('×'+ready, bx, by+1);
     } else {
+      // growing / regrowing — progress toward the soonest fruit
+      let next=Infinity, dur=REGROW_MS;
+      for(const t of pl.timers){ if(t.at<next){ next=t.at; dur=t.dur||REGROW_MS; } }
+      const pct = next===Infinity ? 1 : Math.min(1, Math.max(0, 1-(next-now())/dur));
       ctx.font='20px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
       ctx.fillText('🌱', pl.x, pl.y-2);
-      // progress ring
       ctx.strokeStyle='rgba(0,0,0,.35)'; ctx.lineWidth=4;
       ctx.beginPath(); ctx.arc(pl.x, pl.y, TS*0.5, 0, Math.PI*2); ctx.stroke();
-      ctx.strokeStyle=`var(--${s.rarity})`;
       ctx.strokeStyle='#5be08a'; ctx.lineWidth=4;
       ctx.beginPath(); ctx.arc(pl.x, pl.y, TS*0.5, -Math.PI/2, -Math.PI/2+pct*Math.PI*2); ctx.stroke();
     }
@@ -659,8 +709,13 @@ function updatePrompt(near){
   else if(near.type==='plot'){
     const pl=state.plots[near.index];
     if(pl.seedId){
-      const s=SEED_MAP[pl.seedId]; const left=Math.ceil(s.grow-(now()-pl.plantedAt)/1000);
-      txt = left<=0 ? `<span class="key">E</span> Harvest <b>${s.name}</b> ×${s.yield}` : `${s.emoji} ${s.name} — ${fmtTime(left)} left`;
+      const s=SEED_MAP[pl.seedId];
+      if((pl.fruits||0)>0){
+        txt = `<span class="key">E</span> Harvest <b>${s.name}</b> ×${pl.fruits}`;
+      } else {
+        const next=pl.timers.reduce((m,t)=>Math.min(m,t.at), Infinity);
+        txt = `${s.emoji} ${s.name} — next fruit in ${fmtTime((next-now())/1000)}`;
+      }
     } else {
       const sel=state.selectedSeed?SEED_MAP[state.selectedSeed]:null;
       txt = sel ? `<span class="key">E</span> Plant <b>${sel.name}</b>` : `Select a seed to plant`;
@@ -745,6 +800,7 @@ let last=performance.now();
 function frame(t){
   const dt=Math.min(0.05,(t-last)/1000); last=t;
   movePlayer(dt);
+  updatePlots();
   updateCamera(dt);
   draw();
   requestAnimationFrame(frame);
