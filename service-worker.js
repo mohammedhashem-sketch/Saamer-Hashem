@@ -1,6 +1,6 @@
 /* Sprout Tycoon service worker — offline app-shell cache.
    Bump CACHE when you change the game so clients pull the new version. */
-const CACHE = 'sprout-v1';
+const CACHE = 'sprout-v2';
 const ASSETS = [
   './',
   './index.html',
