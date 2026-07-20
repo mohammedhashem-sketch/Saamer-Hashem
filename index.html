@@ -34,6 +34,7 @@
   .chip.click:active{background:rgba(47,125,74,.9)}
   .chip.leaf{color:#7fe6a8;border-color:#2f7d4a}
   .chip.cur{color:#bfe6c8}
+  .chip.spr{color:#7fd0ff;border-color:#4a7fa8}
 
   .histlist{max-height:52vh;overflow:auto;display:flex;flex-direction:column;gap:6px}
   .hitem{display:flex;justify-content:space-between;gap:10px;padding:8px 10px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;font-size:13.5px;line-height:1.4}
@@ -53,6 +54,8 @@
   .slot .c{font-size:11px;color:var(--muted);margin-top:1px}
   .slot .k{position:absolute;top:2px;left:4px;font-size:9px;color:var(--muted)}
   .slot.empty-hot{color:var(--muted);font-size:11px;min-width:120px;display:flex;align-items:center;justify-content:center}
+  .slot.tool{border-color:#4a7fa8;background:rgba(29,55,72,.9)}
+  .slot.tool.sel{border-color:var(--gold)}
 
   /* Mobile dpad + action */
   #touch{position:fixed;inset:0;z-index:9;pointer-events:none}
@@ -75,6 +78,7 @@
   .field{margin-bottom:14px}
   .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
   .field input{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:10px 12px;font-size:15px}
+  .codebox{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:10px 12px;font-size:12px;font-family:monospace;resize:vertical;word-break:break-all}
   .avatars{display:flex;gap:8px;flex-wrap:wrap}
   .av{width:52px;height:52px;border-radius:12px;background:var(--panel2);border:2px solid var(--line);font-size:28px;display:flex;align-items:center;justify-content:center;cursor:pointer}
   .av.sel{border-color:var(--gold);box-shadow:0 0 0 2px var(--gold) inset}
@@ -145,12 +149,14 @@
     <div class="chip name" id="hudName">🧑‍🌾 Farmer</div>
     <div class="chip">🏆 Lv <span id="hudLevel">1</span></div>
     <div class="chip click" id="histBtn">📜 History</div>
+    <div class="chip click" id="saveBtn">💾 Save</div>
   </div>
   <div class="grp">
     <div class="chip click cur" id="curBtn">💱 <span id="hudCur">USD</span></div>
     <div class="chip click leaf" id="leafBtn">🍃 <span id="hudLeaf">0</span></div>
     <div class="chip coins">🪙 <span id="hudCoins">0</span></div>
     <div class="chip">🌾 <span id="hudCrops">0</span> crops</div>
+    <div class="chip spr" id="hudSpr" style="display:none"></div>
   </div>
 </div>
 
@@ -201,7 +207,7 @@
     <p class="sub">Rarer seeds have a lower chance to be in stock. The shop re-rolls its stock every 4 minutes.</p>
     <div class="restock">Restock in <b><span id="restockIn">--</span>s</b></div>
     <div id="shopList"></div>
-    <div class="foot"><button class="btn" id="forceRestock" style="flex:1">🔄 Restock Now (5 🪙)</button></div>
+    <div class="foot"><button class="btn" id="forceRestock" style="flex:1">🔄 Restock Now (1 🍃)</button></div>
   </div>
 </div>
 
@@ -214,6 +220,39 @@
     <div id="marketList"></div>
     <div class="foot"><button class="btn sell" id="sellAll" style="flex:1">💰 Sell Everything</button></div>
     <p class="tiny">Progress saves automatically · <a id="resetBtn">reset game</a></p>
+  </div>
+</div>
+
+<!-- Save & Backup -->
+<div class="overlay" id="saveOverlay">
+  <div class="modal">
+    <span class="x" data-close="saveOverlay">✕</span>
+    <h2>💾 Save &amp; Backup</h2>
+    <p class="sub">Your game saves by itself. But if you're on the preview link and it ever forgets your progress, use a <b>save code</b> to keep it safe — it works on any link and any device!</p>
+    <div class="disclaimer" id="saveWarn" style="display:none">⚠️ This link can't save on its own. Copy your save code below and keep it somewhere safe (like a note), then paste it back to continue!</div>
+    <div class="field">
+      <label>1 · Your save code — copy &amp; keep it safe</label>
+      <textarea id="saveCodeOut" class="codebox" rows="4" readonly></textarea>
+      <button class="btn" id="copySave" style="width:100%;margin-top:6px">📋 Copy my save code</button>
+    </div>
+    <div class="field">
+      <label>2 · Paste a save code to load it</label>
+      <textarea id="saveCodeIn" class="codebox" rows="4" placeholder="Paste your saved code here…"></textarea>
+      <button class="btn" id="loadSave" style="width:100%;margin-top:6px">📥 Load this save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Gear Shop (tools & sprinklers) -->
+<div class="overlay" id="gearOverlay">
+  <div class="modal">
+    <span class="x" data-close="gearOverlay">✕</span>
+    <h2>🛠️ Gear Shop</h2>
+    <p class="sub">Tools and sprinklers to help your garden. Restocks with the seed shop — grab them while they're in stock!</p>
+    <div class="disclaimer" id="gearActive" style="display:none"></div>
+    <p class="tiny" id="gearWater" style="margin:0 0 12px">No watering can yet</p>
+    <div id="gearList"></div>
+    <p class="tiny">Tip: pick the 🪏 Shovel or 💧 Watering Can from your tool bar, then press E on a plant to use it.</p>
   </div>
 </div>
 
@@ -261,9 +300,9 @@
 // Plants are permanent: once planted they mature over `grow` (seconds), come up
 // with `cap` ripe fruit, and each fruit you harvest regrows in REGROW_MS (5 min).
 const SEEDS = [
-  { id:'carrot',    name:'Carrot',        emoji:'🥕', rarity:'common',    cost:10,    grow:8,   sell:16,     stockChance:1.00, cap:3 },
-  { id:'potato',    name:'Potato',        emoji:'🥔', rarity:'common',    cost:14,    grow:10,  sell:22,     stockChance:0.90, cap:3 },
-  { id:'wheat',     name:'Wheat',         emoji:'🌾', rarity:'common',    cost:8,     grow:6,   sell:12,     stockChance:1.00, cap:3 },
+  { id:'carrot',    name:'Carrot',        emoji:'🥕', rarity:'common',    cost:10,    grow:8,   sell:16,     stockChance:1.00, cap:1, oneTime:true },
+  { id:'potato',    name:'Potato',        emoji:'🥔', rarity:'common',    cost:14,    grow:10,  sell:22,     stockChance:0.90, cap:1, oneTime:true },
+  { id:'wheat',     name:'Wheat',         emoji:'🌾', rarity:'common',    cost:8,     grow:6,   sell:12,     stockChance:1.00, cap:1, oneTime:true },
   { id:'strawberry',name:'Strawberry',    emoji:'🍓', rarity:'rare',      cost:120,    grow:600,   sell:210,      stockChance:0.35, cap:5 },
   { id:'tomato',    name:'Tomato',        emoji:'🍅', rarity:'rare',      cost:160,    grow:600,   sell:290,      stockChance:0.30, cap:5 },
   { id:'corn',      name:'Corn',          emoji:'🌽', rarity:'rare',      cost:220,    grow:600,   sell:400,      stockChance:0.25, cap:5 },
@@ -275,10 +314,26 @@ const SEEDS = [
   { id:'celestial', name:'Celestial Rose',emoji:'🌹', rarity:'mythic',    cost:100000, grow:7200,  sell:28000,    stockChance:0.001, cap:1 },
   { id:'phoenix',   name:'Phoenix Bloom', emoji:'🔥', rarity:'mythic',    cost:140000, grow:7200,  sell:40000,    stockChance:0.001, cap:2 },
   // Exclusive — never restock; buyable only with Leaf Coins in the Leaf Shop
-  { id:'rainbow',   name:'Rainbow Bloom',  emoji:'🌈', rarity:'exclusive', cost:0, grow:300,  sell:25000,  stockChance:0, cap:6, leafCost:25 },
-  { id:'starfruit', name:'Star Fruit',     emoji:'⭐', rarity:'exclusive', cost:0, grow:300,  sell:15000,  stockChance:0, cap:6, leafCost:12 },
+  { id:'rainbow',   name:'Rainbow Bloom',  emoji:'🌈', rarity:'exclusive', cost:0, grow:300,  sell:25000,  stockChance:0, cap:6, leafCost:100 },
+  { id:'starfruit', name:'Star Fruit',     emoji:'⭐', rarity:'exclusive', cost:0, grow:300,  sell:15000,  stockChance:0, cap:6, leafCost:150 },
 ];
 const REGROW_MS = 5*60*1000;   // each harvested fruit regrows in 5 minutes
+
+// ---- Gear Shop: tools & sprinklers (restock with these chances) ----
+const SPRINKLER_MS = 10*60*1000;  // sprinklers last 10 minutes
+const WATER_SKIP_MS = 5*60*1000;  // watering can skips 5 minutes per use
+const WATER_USES = 10;            // uses you get when you buy a watering can
+const GEAR = [
+  { id:'wateringcan', name:'Watering Can',   emoji:'💧', cost:30,   stockChance:0.50, kind:'can',
+    desc:'10 uses — each use skips 5 min of a plant’s growing' },
+  { id:'basic',       name:'Basic Sprinkler',emoji:'🚿', cost:100,  stockChance:0.45, kind:'sprinkler', tier:'basic',  mult:1,
+    desc:'Plants grow 2× faster for 10 min (works online & offline)' },
+  { id:'good',        name:'Good Sprinkler', emoji:'💦', cost:500,  stockChance:0.25, kind:'sprinkler', tier:'good',   mult:2,
+    desc:'Fruit becomes ✨ Slippery and sells ×2 for 10 min' },
+  { id:'strong',      name:'Strong Sprinkler',emoji:'🌊', cost:2000, stockChance:0.10, kind:'sprinkler', tier:'strong', mult:4,
+    desc:'Fruit becomes ✨ Super Slippery and sells ×4 for 10 min' },
+];
+const GEAR_MAP = Object.fromEntries(GEAR.map(g=>[g.id,g]));
 const SEED_MAP = Object.fromEntries(SEEDS.map(s=>[s.id,s]));
 const RARITY_ORDER = {common:0,rare:1,epic:2,legendary:3,mythic:4,exclusive:5};
 
@@ -324,6 +379,7 @@ const WORLD_W = COLS*TS, WORLD_H = ROWS*TS;
 const BUILDINGS = [
   { kind:'seed',   label:'Seed Shop', emoji:'🌱', col:21, row:3,  w:5, h:4 },
   { kind:'market', label:'Market',    emoji:'🏪', col:21, row:14, w:5, h:4 },
+  { kind:'gear',   label:'Gear Shop', emoji:'🛠️', col:4,  row:16, w:5, h:4 },
 ].map(b=>{
   const x=b.col*TS, y=b.row*TS, w=b.w*TS, h=b.h*TS;
   return {...b, x,y,w,h, door:{x:x+w/2, y:y+h+TS*0.55}};
@@ -355,8 +411,12 @@ let state = load() || {
   cropInv:{},   // harvested crops to sell
   plots:PLOTS.map(p=>({seedId:null,fruits:0,timers:[]})),
   shop:{},
+  gearShop:{},        // gear stock (itemId -> qty)
   lastRestock:Date.now(),
   selectedSeed:null,
+  tool:'none',        // 'none' | 'shovel' | 'can'
+  wateringUses:0,     // watering-can charges left
+  sprinkler:null,     // {tier, mult, until}  active garden sprinkler
   xp:0,
 };
 // migrate plot positions + shape onto saved plot data
@@ -412,7 +472,8 @@ function updatePlots(){
     }
     if(pl.fruits>cap) pl.fruits=cap;
     // any slot that is neither ripe nor already regrowing starts a 5-min regrow
-    while((pl.fruits||0)+pl.timers.length < cap){ pl.timers.push({at:t+REGROW_MS, dur:REGROW_MS}); }
+    const rg = basicActive() ? REGROW_MS/2 : REGROW_MS;   // basic sprinkler = 2× faster regrow
+    while((pl.fruits||0)+pl.timers.length < cap){ pl.timers.push({at:t+rg, dur:rg}); }
   }
 }
 
@@ -522,22 +583,52 @@ function tryInteract(){
   if(!it) return;
   if(it.type==='seed'){ openSeedShop(); }
   else if(it.type==='market'){ openMarket(); }
+  else if(it.type==='gear'){ openGearShop(); }
   else if(it.type==='plot'){ handlePlot(it.index); }
 }
 function handlePlot(i){
   updatePlots();
   const pl=state.plots[i];
+
+  // --- Tool actions on a plant ---
+  if(pl.seedId && state.tool==='shovel'){
+    const s=SEED_MAP[pl.seedId];
+    if(RARITY_ORDER[s.rarity]>=2 && !confirm(`Dig up your ${s.name}? It will be removed for good.`)){ return; }
+    pl.seedId=null; pl.fruits=0; pl.timers=[];
+    toast(`Dug up the ${s.name}`); log(`Dug up a <b>${s.name}</b>`);
+    renderHUD(); renderHotbar(); return;
+  }
+  if(pl.seedId && state.tool==='can'){
+    if(state.wateringUses<=0){ toast('No watering-can uses left. Buy one at the Gear Shop!'); return; }
+    if((pl.fruits||0)>=SEED_MAP[pl.seedId].cap){ toast('This plant is already full!'); return; }
+    state.wateringUses-=1;
+    pl.timers.forEach(t=>{ t.at -= WATER_SKIP_MS; });   // skip 5 minutes on this plant
+    updatePlots();
+    toast(`💧 Watered — skipped 5 min! (${state.wateringUses} uses left)`);
+    log(`Watered a <b>${SEED_MAP[pl.seedId].name}</b> (skipped 5m)`);
+    renderHUD(); renderHotbar(); return;
+  }
+
   if(pl.seedId){
     const s=SEED_MAP[pl.seedId];
     if(pl.fruits>0){
-      // harvest a single fruit; that one slot immediately starts regrowing (5m)
-      pl.fruits -= 1;
-      state.cropInv[s.id]=(state.cropInv[s.id]||0)+1;
-      state.xp += Math.round(s.sell/10);
-      updatePlots();   // queue the 5-min regrow timer for the emptied slot
-      const leftTxt = pl.fruits>0 ? ` · ${pl.fruits} left` : '';
-      toast(`Harvested 1 ${s.emoji} ${s.name}${leftTxt}`);
-      log(`Harvested <b>1 ${s.name}</b> (regrows in 5m)`);
+      const mult=moneyMult();                 // ✨ slippery bonus from a good/strong sprinkler
+      const take = s.oneTime ? pl.fruits : 1;  // commons give everything once, then vanish
+      const key = mult>1 ? s.id+'*'+mult : s.id;
+      state.cropInv[key]=(state.cropInv[key]||0)+take;
+      state.xp += Math.round(s.sell*mult*take/10);
+      pl.fruits -= take;
+      const slip = mult>1 ? (mult>=4?'✨ Super Slippery ':'✨ Slippery ') : '';
+      if(s.oneTime){
+        pl.seedId=null; pl.timers=[]; pl.fruits=0;
+        toast(`Harvested ${take}× ${slip}${s.emoji} ${s.name}!`);
+        log(`Harvested <b>${take}× ${slip}${s.name}</b> (one-time)`);
+      } else {
+        updatePlots();   // queue the 5-min regrow for the emptied slot
+        const leftTxt = pl.fruits>0 ? ` · ${pl.fruits} left` : '';
+        toast(`Harvested 1 ${slip}${s.emoji} ${s.name}${leftTxt}`);
+        log(`Harvested <b>1 ${slip}${s.name}</b> (regrows in 5m)`);
+      }
     } else {
       const next=pl.timers.reduce((m,t)=>Math.min(m,t.at), Infinity);
       const left=(next-now())/1000;
@@ -551,12 +642,18 @@ function handlePlot(i){
     const readyAt=now()+s.grow*1000;
     pl.seedId=id; pl.fruits=0;
     pl.timers=Array.from({length:s.cap}, ()=>({at:readyAt, dur:s.grow*1000}));
+    const forever = s.oneTime ? 'one-time harvest' : 'regrows forever';
     toast(`Planted ${s.emoji} ${s.name} — ${s.cap} fruit in ${fmtTime(s.grow)}`);
-    log(`Planted a <b>${s.name}</b> (holds ${s.cap}, regrows forever)`);
+    log(`Planted a <b>${s.name}</b> (holds ${s.cap}, ${forever})`);
     if(!state.seedInv[id]) state.selectedSeed = Object.keys(state.seedInv)[0]||null;
   }
   renderHUD(); renderHotbar();
 }
+
+// ---- Sprinkler helpers (timestamp-based → work offline) ----
+function sprinklerActive(){ return state.sprinkler && now()<state.sprinkler.until ? state.sprinkler : null; }
+function moneyMult(){ const s=sprinklerActive(); return s && s.mult>1 ? s.mult : 1; }
+function basicActive(){ const s=sprinklerActive(); return s && s.tier==='basic'; }
 
 // ---- Shop restock ----
 function rollStock(){
@@ -570,18 +667,24 @@ function rollStock(){
   if(Object.keys(shop).length===0) shop['carrot']=8;
   state.shop=shop; state.lastRestock=now();
 }
+function rollGearStock(){
+  const g={};
+  for(const item of GEAR){ if(Math.random()<item.stockChance){ g[item.id]=1+Math.floor(Math.random()*(item.kind==='can'?3:2)); } }
+  state.gearShop=g;
+}
 function maybeRestock(){
   if(now()-state.lastRestock>=RESTOCK_MS){
-    rollStock();
+    rollStock(); rollGearStock();
     const rare=Object.keys(state.shop).filter(id=>RARITY_ORDER[SEED_MAP[id].rarity]>=3);
     if(rare.length){
       log(`✨ Shop restocked — rare find: <b>${rare.map(id=>SEED_MAP[id].name).join(', ')}</b>!`);
       notify(`✨ <b>${rare.map(id=>SEED_MAP[id].name).join(', ')}</b> in stock! <span class="tap">tap to shop</span>`);
     } else {
-      log('🔄 Seed Shop restocked.');
-      notify(`🔄 <b>Seed Shop restocked!</b> <span class="tap">tap to shop</span>`);
+      log('🔄 Shops restocked.');
+      notify(`🔄 <b>Shops restocked!</b> <span class="tap">tap to shop</span>`);
     }
     if(document.getElementById('seedOverlay').classList.contains('show')) renderShop();
+    if(document.getElementById('gearOverlay').classList.contains('show')) renderGear();
   }
 }
 
@@ -597,21 +700,28 @@ function buy(id){
   log(`Bought a <b>${s.name}</b> seed for ${s.cost} 🪙`);
   renderShop(); renderHUD(); renderHotbar();
 }
+const RESTOCK_LEAF_COST = 1;   // Leaf Coins to force a restock
 function forceRestock(){
-  if(state.coins<5){ toast('Need 5 coins.'); return; }
-  state.coins-=5; rollStock(); log('Paid 5 🪙 to restock the Seed Shop.'); renderShop(); renderHUD();
+  if((state.leafCoins||0) < RESTOCK_LEAF_COST){ toast(`Need ${RESTOCK_LEAF_COST} 🍃 Leaf Coin — get some in the Leaf Shop!`); return; }
+  state.leafCoins-=RESTOCK_LEAF_COST; rollStock();
+  log(`Paid ${RESTOCK_LEAF_COST} 🍃 to restock the Seed Shop.`);
+  renderShop(); renderHUD();
 }
-function sellCrop(id){
-  const n=state.cropInv[id]; if(!n) return;
-  const s=SEED_MAP[id];
-  state.coins += s.sell*n; delete state.cropInv[id];
-  toast(`Sold ${n}× ${s.emoji} for ${s.sell*n} 🪙`);
-  log(`Sold ${n}× <b>${s.name}</b> for +${s.sell*n} 🪙`);
+// A crop key is either "id" or "id*mult" (slippery bonus). Parse it.
+function parseCrop(key){ const [id,m]=key.split('*'); return { seed:SEED_MAP[id], mult:m?parseInt(m):1 }; }
+function cropValue(key){ const c=parseCrop(key); return c.seed.sell*c.mult; }
+function cropLabel(key){ const c=parseCrop(key); const tag=c.mult>=4?'✨ Super Slippery ':c.mult>1?'✨ Slippery ':''; return tag+c.seed.name; }
+function sellCrop(key){
+  const n=state.cropInv[key]; if(!n) return;
+  const v=cropValue(key)*n; delete state.cropInv[key];
+  state.coins += v;
+  toast(`Sold ${n}× ${parseCrop(key).seed.emoji} for ${v} 🪙`);
+  log(`Sold ${n}× <b>${cropLabel(key)}</b> for +${v} 🪙`);
   renderMarket(); renderHUD();
 }
 function sellAll(){
   let total=0,count=0;
-  for(const id in state.cropInv){ total+=SEED_MAP[id].sell*state.cropInv[id]; count+=state.cropInv[id]; }
+  for(const key in state.cropInv){ total+=cropValue(key)*state.cropInv[key]; count+=state.cropInv[key]; }
   if(!count){ toast('No crops to sell.'); return; }
   state.coins+=total; state.cropInv={};
   toast(`Sold ${count} crops for ${total} 🪙`);
@@ -638,6 +748,28 @@ function buyExclusive(id){
   log(`Bought exclusive <b>${s.name}</b> for ${s.leafCost} 🍃`);
   renderPremium(); renderHUD(); renderHotbar();
 }
+// Mystery Seed Pack — pay Leaf Coins, get ONE random seed. Rarer seeds are
+// less likely; exclusives are the rarest surprise of all.
+const PACK_COST = 25;
+const PACK_WEIGHT = {common:40, rare:25, epic:16, legendary:8, mythic:4, exclusive:2};
+function randomSeed(){
+  let total=0; for(const s of SEEDS){ total += PACK_WEIGHT[s.rarity]||1; }
+  let r=Math.random()*total;
+  for(const s of SEEDS){ r -= (PACK_WEIGHT[s.rarity]||1); if(r<=0) return s; }
+  return SEEDS[0];
+}
+function buyMysteryPack(){
+  if((state.leafCoins||0) < PACK_COST){ toast('Not enough Leaf Coins.'); return; }
+  state.leafCoins -= PACK_COST;
+  const s=randomSeed();
+  state.seedInv[s.id]=(state.seedInv[s.id]||0)+1;
+  if(!state.selectedSeed) state.selectedSeed=s.id;
+  const special = RARITY_ORDER[s.rarity]>=3;
+  toast(`${special?'🌟 ':'🎁 '}You got ${s.emoji} ${s.name}!`);
+  log(`Opened a Mystery Seed Pack → <b>${s.emoji} ${s.name}</b> (${s.rarity})`);
+  notify(`${special?'🌟':'🎁'} Mystery Pack: <b>${s.emoji} ${s.name}</b>!`);
+  renderPremium(); renderHUD(); renderHotbar();
+}
 function renderPremium(){
   const pk=document.getElementById('packList'); pk.innerHTML='';
   LEAF_PACKS.forEach((p,i)=>{
@@ -650,6 +782,15 @@ function renderPremium(){
     pk.appendChild(d);
   });
   const ex=document.getElementById('exclusiveList'); ex.innerHTML='';
+  // Mystery Seed Pack — one RANDOM seed (could be anything, even an exclusive)
+  const upAfford=(state.leafCoins||0)>=PACK_COST;
+  const up=document.createElement('div'); up.className='pack best';
+  up.innerHTML=`<span class="best-tag">Random!</span>
+    <span class="leafico">🎁</span>
+    <div><div class="amt">Mystery Seed Pack</div><div class="sub3">1 random seed — could be anything, even an exclusive! 🌟</div></div>
+    <button class="buyleaf" ${upAfford?'':'disabled'}>🍃 ${PACK_COST}</button>`;
+  up.querySelector('.buyleaf').onclick=()=>buyMysteryPack();
+  ex.appendChild(up);
   SEEDS.filter(s=>s.leafCost).forEach(s=>{
     const afford=(state.leafCoins||0)>=s.leafCost;
     const d=document.createElement('div'); d.className='row';
@@ -673,11 +814,57 @@ function renderCurrency(){
   });
 }
 
+// ---- Gear Shop (tools & sprinklers) ----
+function buyGear(id){
+  const g=GEAR_MAP[id];
+  if(!state.gearShop[id]){ toast('Out of stock!'); return; }
+  if(state.coins<g.cost){ toast('Not enough coins.'); return; }
+  state.coins-=g.cost; state.gearShop[id]-=1; if(state.gearShop[id]<=0) delete state.gearShop[id];
+  if(g.kind==='can'){
+    state.wateringUses += WATER_USES;
+    toast(`Bought 💧 Watering Can — ${WATER_USES} uses!`);
+    log(`Bought a <b>Watering Can</b> (+${WATER_USES} uses) for ${g.cost} 🪙`);
+  } else {
+    // buying a sprinkler switches it on right away for 10 minutes
+    state.sprinkler = { tier:g.tier, mult:g.mult, until: now()+SPRINKLER_MS };
+    updatePlots();
+    toast(`${g.emoji} ${g.name} on for 10 min!`);
+    log(`Activated <b>${g.name}</b> for 10 minutes`);
+  }
+  renderGear(); renderHUD(); renderHotbar();
+}
+function renderGear(){
+  // active sprinkler banner
+  const sp=document.getElementById('gearActive');
+  const a=sprinklerActive();
+  if(a){ const g=GEAR_MAP[a.tier]; sp.style.display='block'; sp.innerHTML=`${g.emoji} <b>${g.name}</b> active — ${fmtTime((a.until-now())/1000)} left`; }
+  else sp.style.display='none';
+  // watering can status
+  document.getElementById('gearWater').textContent = state.wateringUses>0 ? `You have 💧 ${state.wateringUses} watering-can uses` : 'No watering can yet';
+  // shop list
+  const el=document.getElementById('gearList'); el.innerHTML='';
+  GEAR.forEach(g=>{
+    const inStock=state.gearShop[g.id]>0;
+    const pct=g.stockChance*100;
+    const d=document.createElement('div'); d.className='row'+(inStock?'':' out');
+    d.innerHTML=`<div class="ico">${g.emoji}</div>
+      <div class="info">
+        <div class="nm">${g.name}</div>
+        <div class="sub2">${g.desc} · stock ${pct.toFixed(0)}%</div>
+        <div class="stockline" style="color:${inStock?'var(--common)':'#c26'}">${inStock?('In stock ×'+state.gearShop[g.id]):'Out of stock'}</div>
+      </div>
+      <button class="btn" ${(!inStock||state.coins<g.cost)?'disabled':''}>${g.cost} 🪙</button>`;
+    d.querySelector('.btn').onclick=()=>buyGear(g.id);
+    el.appendChild(d);
+  });
+}
+
 // ---- Panels ----
 function openSeedShop(){ renderShop(); show('seedOverlay'); }
 function openMarket(){ renderMarket(); show('marketOverlay'); }
 function openLeafShop(){ renderPremium(); show('leafOverlay'); }
 function openCurrency(){ renderCurrency(); show('currencyOverlay'); }
+function openGearShop(){ renderGear(); show('gearOverlay'); }
 function show(id){ document.getElementById(id).classList.add('show'); }
 function closeAll(){ document.querySelectorAll('.overlay.show').forEach(o=>{ if(o.id!=='setupOverlay') o.classList.remove('show'); }); }
 document.querySelectorAll('[data-close]').forEach(x=>x.onclick=()=>document.getElementById(x.dataset.close).classList.remove('show'));
@@ -703,18 +890,21 @@ function renderShop(){
 }
 function renderMarket(){
   const el=document.getElementById('marketList'); el.innerHTML='';
-  const ids=Object.keys(state.cropInv).sort((a,b)=>RARITY_ORDER[SEED_MAP[a].rarity]-RARITY_ORDER[SEED_MAP[b].rarity]);
-  if(!ids.length){ el.innerHTML='<div class="empty-note">No crops yet. Plant seeds in the garden, wait for them to ripen, then harvest and come back to sell!</div>'; return; }
-  ids.forEach(id=>{
-    const s=SEED_MAP[id], n=state.cropInv[id];
+  const keys=Object.keys(state.cropInv).sort((a,b)=>{
+    const ca=parseCrop(a), cb=parseCrop(b);
+    return (RARITY_ORDER[ca.seed.rarity]-RARITY_ORDER[cb.seed.rarity]) || (cb.mult-ca.mult);
+  });
+  if(!keys.length){ el.innerHTML='<div class="empty-note">No crops yet. Plant seeds in the garden, wait for them to ripen, then harvest and come back to sell!</div>'; return; }
+  keys.forEach(key=>{
+    const c=parseCrop(key), n=state.cropInv[key], each=cropValue(key);
     const d=document.createElement('div'); d.className='row';
-    d.innerHTML=`<div class="ico">${s.emoji}</div>
+    d.innerHTML=`<div class="ico">${c.seed.emoji}</div>
       <div class="info">
-        <div class="nm">${s.name} <span class="rar ${s.rarity}">${s.rarity}</span></div>
-        <div class="sub2">×${n} in basket · ${s.sell} 🪙 each</div>
+        <div class="nm">${cropLabel(key)} <span class="rar ${c.mult>1?'exclusive':c.seed.rarity}">${c.mult>1?'slippery':c.seed.rarity}</span></div>
+        <div class="sub2">×${n} in basket · ${each} 🪙 each</div>
       </div>
-      <button class="btn sell">Sell ${s.sell*n} 🪙</button>`;
-    d.querySelector('.btn').onclick=()=>sellCrop(id);
+      <button class="btn sell">Sell ${each*n} 🪙</button>`;
+    d.querySelector('.btn').onclick=()=>sellCrop(key);
     el.appendChild(d);
   });
 }
@@ -731,24 +921,41 @@ function renderHUD(){
   document.getElementById('hudCrops').textContent = Object.values(state.cropInv).reduce((a,b)=>a+b,0);
   document.getElementById('hudLeaf').textContent = Math.floor(state.leafCoins||0).toLocaleString();
   document.getElementById('hudCur').textContent = state.currency||'USD';
+  const sprEl=document.getElementById('hudSpr'); const a=sprinklerActive();
+  if(a){ const g=GEAR_MAP[a.tier]; sprEl.style.display='flex'; sprEl.textContent=`${g.emoji} ${fmtTime((a.until-now())/1000)}`; }
+  else sprEl.style.display='none';
   save();
 }
 function renderHotbar(){
   const hb=document.getElementById('hotbar'); hb.innerHTML='';
+  // --- Tool slots (always Shovel; Watering Can when you have uses) ---
+  const shovel=document.createElement('div');
+  shovel.className='slot tool'+(state.tool==='shovel'?' sel':'');
+  shovel.innerHTML=`<div class="e">🪏</div><div class="c">dig</div>`;
+  shovel.onclick=()=>{ state.tool = state.tool==='shovel'?'none':'shovel'; renderHotbar(); };
+  hb.appendChild(shovel);
+  if(state.wateringUses>0){
+    const can=document.createElement('div');
+    can.className='slot tool'+(state.tool==='can'?' sel':'');
+    can.innerHTML=`<div class="e">💧</div><div class="c">×${state.wateringUses}</div>`;
+    can.onclick=()=>{ state.tool = state.tool==='can'?'none':'can'; renderHotbar(); };
+    hb.appendChild(can);
+  }
+  // --- Seed slots ---
   const ids=Object.keys(state.seedInv).sort((a,b)=>RARITY_ORDER[SEED_MAP[a].rarity]-RARITY_ORDER[SEED_MAP[b].rarity]);
-  if(!ids.length){ hb.innerHTML='<div class="slot empty-hot">Buy seeds at the 🌱 Seed Shop</div>'; return; }
+  if(!ids.length){ const e=document.createElement('div'); e.className='slot empty-hot'; e.textContent='Buy seeds at the 🌱 Seed Shop'; hb.appendChild(e); }
   ids.forEach((id,i)=>{
     const s=SEED_MAP[id];
     const d=document.createElement('div');
-    d.className='slot'+(state.selectedSeed===id?' sel':'');
+    d.className='slot'+(state.tool==='none'&&state.selectedSeed===id?' sel':'');
     d.innerHTML=`${i<9?`<span class="k">${i+1}</span>`:''}<div class="e">${s.emoji}</div><div class="c">×${state.seedInv[id]}</div>`;
-    d.onclick=()=>{ state.selectedSeed=id; renderHotbar(); };
+    d.onclick=()=>{ state.selectedSeed=id; state.tool='none'; renderHotbar(); };
     hb.appendChild(d);
   });
 }
 function selectSlot(i){
   const ids=Object.keys(state.seedInv).sort((a,b)=>RARITY_ORDER[SEED_MAP[a].rarity]-RARITY_ORDER[SEED_MAP[b].rarity]);
-  if(ids[i]){ state.selectedSeed=ids[i]; renderHotbar(); }
+  if(ids[i]){ state.selectedSeed=ids[i]; state.tool='none'; renderHotbar(); }
 }
 
 // ---- Drawing the world ----
@@ -771,6 +978,7 @@ function draw(){
   ctx.strokeStyle='rgba(196,168,120,.55)'; ctx.lineWidth=26; ctx.lineCap='round';
   path([[WORLD_W*0.42,WORLD_H*0.55],[BUILDINGS[0].door.x,BUILDINGS[0].door.y]]);
   path([[WORLD_W*0.42,WORLD_H*0.55],[BUILDINGS[1].door.x,BUILDINGS[1].door.y]]);
+  path([[WORLD_W*0.42,WORLD_H*0.55],[BUILDINGS[2].door.x,BUILDINGS[2].door.y]]);
 
   // plots
   const near = nearestInteractable();
@@ -837,10 +1045,10 @@ function drawBuilding(b, active){
   ctx.fillStyle='rgba(0,0,0,.2)';
   roundRectRaw(b.x+6,b.y+10,b.w,b.h,14); ctx.fill();
   // walls
-  const wall = b.kind==='seed' ? '#c98a4b' : '#8a5db0';
+  const wall = b.kind==='seed' ? '#c98a4b' : b.kind==='market' ? '#8a5db0' : '#4a7fa8';
   roundRect(b.x,b.y,b.w,b.h,14, wall);
   // roof
-  const roof = b.kind==='seed' ? '#7d4a24' : '#5a3a80';
+  const roof = b.kind==='seed' ? '#7d4a24' : b.kind==='market' ? '#5a3a80' : '#2f5a7d';
   roundRect(b.x-6,b.y-14, b.w+12, b.h*0.42, 12, roof);
   // door
   const dw=TS*0.9, dh=TS*1.0;
@@ -884,12 +1092,18 @@ function updatePrompt(near){
     const pl=state.plots[near.index];
     if(pl.seedId){
       const s=SEED_MAP[pl.seedId];
-      if((pl.fruits||0)>0){
+      if(state.tool==='shovel'){
+        txt = `<span class="key">E</span> 🪏 Dig up <b>${s.name}</b>`;
+      } else if(state.tool==='can'){
+        txt = `<span class="key">E</span> 💧 Water <b>${s.name}</b> (skip 5m · ${state.wateringUses} left)`;
+      } else if((pl.fruits||0)>0){
         txt = `<span class="key">E</span> Harvest <b>${s.name}</b> — ${pl.fruits} ripe`;
       } else {
         const next=pl.timers.reduce((m,t)=>Math.min(m,t.at), Infinity);
         txt = `${s.emoji} ${s.name} — next fruit in ${fmtTime((next-now())/1000)}`;
       }
+    } else if(state.tool!=='none'){
+      txt = `Empty plot — pick a seed to plant here`;
     } else {
       const sel=state.selectedSeed?SEED_MAP[state.selectedSeed]:null;
       txt = sel ? `<span class="key">E</span> Plant <b>${sel.name}</b>` : `Select a seed to plant`;
@@ -936,6 +1150,27 @@ function openHistory(){ renderHistory(); show('historyOverlay'); }
 function save(){ try{ localStorage.setItem('sproutWorld', JSON.stringify({...state, logs})); }catch(e){} }
 function load(){ try{ const d=JSON.parse(localStorage.getItem('sproutWorld')); if(d&&d.logs) logs=d.logs; return d; }catch(e){ return null; } }
 
+// Is browser storage even usable here? (sandboxed previews may block it)
+let storageOk=true;
+try{ localStorage.setItem('__t','1'); localStorage.removeItem('__t'); }catch(e){ storageOk=false; }
+
+// ---- Manual save codes (work on ANY link, even sandboxed ones) ----
+function exportCode(){ try{ return btoa(unescape(encodeURIComponent(JSON.stringify({...state, logs})))); }catch(e){ return ''; } }
+function importCode(code){
+  const d=JSON.parse(decodeURIComponent(escape(atob((code||'').trim()))));
+  if(!d || !d.player) throw new Error('bad code');
+  d.plots = PLOTS.map((p,i)=>normalizePlot(p, d.plots && d.plots[i]));
+  if(!d.gearShop || !Object.keys(d.gearShop).length){ d.gearShop={}; }
+  if(d.tool!=='shovel' && d.tool!=='can') d.tool='none';
+  if(typeof d.wateringUses!=='number') d.wateringUses=0;
+  logs = Array.isArray(d.logs)? d.logs : [];
+  state = d;
+  save(); renderHUD(); renderHotbar();
+  document.getElementById('saveOverlay').classList.remove('show');
+  toast('✅ Save loaded!');
+  log('Loaded a save code.');
+}
+
 // ---- Setup modal ----
 function buildSetup(){
   const ap=document.getElementById('avatarPick'); ap.innerHTML='';
@@ -960,6 +1195,17 @@ function buildSetup(){
 document.getElementById('forceRestock').onclick=forceRestock;
 document.getElementById('sellAll').onclick=sellAll;
 document.getElementById('histBtn').onclick=openHistory;
+document.getElementById('saveBtn').onclick=()=>{ if(!state.setupDone) return; document.getElementById('saveCodeOut').value=exportCode(); document.getElementById('saveWarn').style.display=storageOk?'none':'block'; show('saveOverlay'); };
+document.getElementById('copySave').onclick=()=>{
+  const t=document.getElementById('saveCodeOut'); t.focus(); t.select();
+  try{ navigator.clipboard.writeText(t.value); }catch(e){}
+  try{ document.execCommand('copy'); }catch(e){}
+  toast('📋 Save code copied!');
+};
+document.getElementById('loadSave').onclick=()=>{
+  try{ importCode(document.getElementById('saveCodeIn').value); }
+  catch(e){ toast('Hmm, that code didn’t work.'); }
+};
 document.getElementById('leafBtn').onclick=()=>{ if(state.setupDone) openLeafShop(); };
 document.getElementById('curBtn').onclick=()=>{ if(state.setupDone) openCurrency(); };
 document.getElementById('notif').onclick=()=>{ document.getElementById('notif').classList.remove('show'); if(state.setupDone) openSeedShop(); };
@@ -968,16 +1214,27 @@ document.getElementById('resetBtn').onclick=()=>{ if(confirm('Reset all progress
 
 // init
 if(!state.shop || Object.keys(state.shop).length===0) rollStock();
+if(!state.gearShop || Object.keys(state.gearShop).length===0) rollGearStock();
+if(state.tool!=='shovel' && state.tool!=='can') state.tool='none';
+if(typeof state.wateringUses!=='number') state.wateringUses=0;
 buildSetup();
 if(!state.setupDone) show('setupOverlay');
 renderHUD(); renderHotbar();
+// Warn once if this link can't save on its own (e.g. a sandboxed preview)
+if(!storageOk){ setTimeout(()=>notify('⚠️ This link can’t save by itself — use the <b>💾 Save</b> button to keep a save code!'), 1400); }
 
-// restock countdown display
+// restock countdown + live sprinkler timer display
+let sprWasActive=false;
 setInterval(()=>{
   maybeRestock();
   const rem=Math.max(0,Math.ceil((RESTOCK_MS-(now()-state.lastRestock))/1000));
   const mm=Math.floor(rem/60), ss=String(rem%60).padStart(2,'0');
   const el=document.getElementById('restockIn'); if(el) el.textContent=`${mm}:${ss}`;
+  // live sprinkler HUD chip
+  const a=sprinklerActive(); const sprEl=document.getElementById('hudSpr');
+  if(a){ const g=GEAR_MAP[a.tier]; sprEl.style.display='flex'; sprEl.textContent=`${g.emoji} ${fmtTime((a.until-now())/1000)}`; sprWasActive=true; }
+  else { sprEl.style.display='none'; if(sprWasActive){ sprWasActive=false; toast('Sprinkler ran out!'); } }
+  if(document.getElementById('gearOverlay').classList.contains('show')) renderGear();
 },400);
 
 // ---- Main loop ----
