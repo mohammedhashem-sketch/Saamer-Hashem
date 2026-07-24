@@ -165,6 +165,7 @@
     <div class="chip name" id="hudName">🧑‍🌾 Farmer</div>
     <div class="chip">🏆 Lv <span id="hudLevel">1</span></div>
     <div class="chip click" id="histBtn">📜 History</div>
+    <div class="chip click" id="friendsBtn">👥 Friends</div>
     <div class="chip click" id="saveBtn">💾 Save</div>
   </div>
   <div class="grp">
@@ -234,6 +235,26 @@
     <div id="marketList"></div>
     <div class="foot"><button class="btn sell" id="sellAll" style="flex:1">💰 Sell Everything</button></div>
     <p class="tiny">Progress saves automatically · <a id="resetBtn">reset game</a></p>
+  </div>
+</div>
+
+<!-- Friends' gardens -->
+<div class="overlay" id="friendsOverlay">
+  <div class="modal">
+    <span class="x" data-close="friendsOverlay">✕</span>
+    <h2>👥 Friends' Gardens</h2>
+    <p class="sub">Add a friend and they get their own garden in your world! You can walk over and look at it — but you can't plant or harvest in a friend's garden. 🔒</p>
+    <div class="field">
+      <label>Friend's name</label>
+      <input id="friendName" maxlength="14" placeholder="Type a friend's name">
+    </div>
+    <div class="field">
+      <label>Their avatar</label>
+      <div class="avatars" id="friendAvatars"></div>
+    </div>
+    <button class="primary" id="addFriendBtn">🌱 Add their garden</button>
+    <div class="sectlabel" style="margin-top:16px">Your friends</div>
+    <div id="friendsList"></div>
   </div>
 </div>
 
@@ -357,6 +378,19 @@ const TREES = [
 ];
 const TREE_R = 18;
 
+// ---- Friends' gardens (view-only) ----
+// Each friend gets a small 3x2 garden at one of these open anchor tiles.
+const FRIEND_ANCHORS = [[15.5,8],[19,12.5],[11,18.5],[16,18.5],[19,4],[8.5,2.5]];
+const FRIEND_MAX = FRIEND_ANCHORS.length;
+// Positions of a friend's 6 plots, computed from their slot index.
+function friendPlots(idx){
+  const a=FRIEND_ANCHORS[idx%FRIEND_ANCHORS.length]; const out=[];
+  for(let j=0;j<2;j++) for(let i=0;i<3;i++){ out.push({ x:(a[0]+i*1.5)*TS, y:(a[1]+j*1.5)*TS }); }
+  return out;
+}
+function friendSign(idx){ const a=FRIEND_ANCHORS[idx%FRIEND_ANCHORS.length]; return { x:(a[0]+2.25*0.5)*TS, y:(a[1]-0.7)*TS }; }
+function randomDecorSeed(){ return SEEDS[Math.floor(Math.random()*SEEDS.length)].id; }
+
 // ---- State ----
 let logs = [];   // declared before load() so load() can populate it safely
 let state = load() || {
@@ -371,6 +405,7 @@ let state = load() || {
   lastRestock:Date.now(),
   selectedSeed:null,
   tool:'none',        // 'none' | 'shovel' | 'can'
+  friends:[],         // [{name, avatar, seeds:[6 seedIds]}] — view-only gardens
   wateringUses:0,     // watering-can charges left
   sprinkler:null,     // {tier, mult, until}  active garden sprinkler
   xp:0,
@@ -522,6 +557,12 @@ function nearestInteractable(){
     const d=Math.hypot(p.x-pl.x, p.y-pl.y);
     if(d<52 && d<bestD){ bestD=d; best={type:'plot', index:i}; }
   }
+  state.friends.forEach((f,fi)=>{
+    friendPlots(fi).forEach(pl=>{
+      const d=Math.hypot(p.x-pl.x, p.y-pl.y);
+      if(d<52 && d<bestD){ bestD=d; best={type:'friendplot', friend:fi}; }
+    });
+  });
   return best;
 }
 function tryInteract(){
@@ -533,6 +574,7 @@ function tryInteract(){
   else if(it.type==='market'){ openMarket(); }
   else if(it.type==='gear'){ openGearShop(); }
   else if(it.type==='plot'){ handlePlot(it.index); }
+  else if(it.type==='friendplot'){ const f=state.friends[it.friend]; toast(`🔒 This is ${f.name}'s garden — look, but don't touch!`); }
 }
 function handlePlot(i){
   updatePlots();
@@ -726,6 +768,45 @@ function renderGear(){
 function openSeedShop(){ renderShop(); show('seedOverlay'); }
 function openMarket(){ renderMarket(); show('marketOverlay'); }
 function openGearShop(){ renderGear(); show('gearOverlay'); }
+
+// ---- Friends' gardens (view-only) ----
+let friendAvatarPick = AVATARS[1];
+function openFriends(){
+  const ap=document.getElementById('friendAvatars'); ap.innerHTML='';
+  friendAvatarPick = AVATARS[1];
+  AVATARS.forEach(a=>{ const d=document.createElement('div'); d.className='av'+(a===friendAvatarPick?' sel':''); d.textContent=a; d.onclick=()=>{ friendAvatarPick=a; ap.querySelectorAll('.av').forEach(x=>x.classList.remove('sel')); d.classList.add('sel'); }; ap.appendChild(d); });
+  renderFriends(); show('friendsOverlay');
+}
+function addFriend(){
+  if(state.friends.length>=FRIEND_MAX){ toast(`You can have up to ${FRIEND_MAX} friends' gardens.`); return; }
+  const nm=(document.getElementById('friendName').value||'').trim().slice(0,14);
+  if(!nm){ toast('Type your friend’s name first!'); return; }
+  const seeds=Array.from({length:6}, ()=>randomDecorSeed());
+  state.friends.push({ name:nm, avatar:friendAvatarPick, seeds });
+  document.getElementById('friendName').value='';
+  toast(`🌱 Added ${nm}'s garden!`);
+  log(`Added <b>${nm}</b>'s garden`);
+  renderFriends(); renderHUD();
+}
+function removeFriend(i){
+  const f=state.friends[i]; if(!f) return;
+  if(!confirm(`Remove ${f.name}'s garden?`)) return;
+  state.friends.splice(i,1);
+  toast(`Removed ${f.name}'s garden`);
+  renderFriends(); renderHUD();
+}
+function renderFriends(){
+  const el=document.getElementById('friendsList'); el.innerHTML='';
+  if(!state.friends.length){ el.innerHTML='<div class="empty-note">No friends yet — add one above and their garden appears in your world!</div>'; return; }
+  state.friends.forEach((f,i)=>{
+    const d=document.createElement('div'); d.className='row';
+    d.innerHTML=`<div class="ico">${f.avatar}</div>
+      <div class="info"><div class="nm">${f.name}</div><div class="sub2">Has a garden in your world (view-only 🔒)</div></div>
+      <button class="btn" style="background:#a8402f">Remove</button>`;
+    d.querySelector('.btn').onclick=()=>removeFriend(i);
+    el.appendChild(d);
+  });
+}
 function show(id){ document.getElementById(id).classList.add('show'); }
 function closeAll(){ document.querySelectorAll('.overlay.show').forEach(o=>{ if(o.id!=='setupOverlay') o.classList.remove('show'); }); }
 document.querySelectorAll('[data-close]').forEach(x=>x.onclick=()=>document.getElementById(x.dataset.close).classList.remove('show'));
@@ -843,6 +924,9 @@ function draw(){
   const near = nearestInteractable();
   state.plots.forEach((pl,i)=>drawPlot(pl,i, near&&near.type==='plot'&&near.index===i));
 
+  // friends' gardens (view-only)
+  state.friends.forEach((f,fi)=>drawFriendGarden(f,fi, near&&near.type==='friendplot'&&near.friend===fi));
+
   // trees
   TREES.forEach(drawTree);
 
@@ -891,6 +975,28 @@ function drawPlot(pl,i,active){
       ctx.beginPath(); ctx.arc(pl.x, pl.y, TS*0.5, -Math.PI/2, -Math.PI/2+pct*Math.PI*2); ctx.stroke();
     }
   }
+}
+function drawFriendGarden(f, fi, active){
+  const plots=friendPlots(fi);
+  // fenced dirt patch behind the plots
+  const minx=plots[0].x-TS*0.7, miny=plots[0].y-TS*0.7;
+  const maxx=plots[plots.length-1].x+TS*0.7, maxy=plots[plots.length-1].y+TS*0.7;
+  roundRect(minx,miny, maxx-minx, maxy-miny, 12, active?'rgba(74,127,168,.5)':'rgba(74,127,168,.32)');
+  plots.forEach((p,i)=>{
+    const x=p.x-TS/2, y=p.y-TS/2;
+    roundRect(x,y,TS,TS,10,'#6f4a30'); roundRect(x+4,y+4,TS-8,TS-8,7,'#5a3b26');
+    const s=SEED_MAP[f.seeds[i]]||SEED_MAP[SEEDS[0].id];
+    ctx.font='26px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(s.emoji, p.x, p.y-1);
+  });
+  // name banner with a little lock (view-only)
+  const sign=friendSign(fi);
+  const label=`${f.avatar} ${f.name} 🔒`;
+  ctx.font='700 13px Segoe UI, sans-serif';
+  const tw=ctx.measureText(label).width;
+  roundRectRaw(sign.x-tw/2-9, sign.y-12, tw+18, 24, 8); ctx.fillStyle=active?'#4a7fa8':'rgba(15,30,19,.92)'; ctx.fill();
+  ctx.fillStyle='#eaf4ff'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(label, sign.x, sign.y);
 }
 function drawTree(t){
   const x=t.col*TS+TS/2, y=t.row*TS+TS*0.62;
@@ -947,6 +1053,8 @@ function updatePrompt(near){
   let txt='';
   if(near.type==='seed') txt=`<span class="key">E</span> Open <b>Seed Shop</b>`;
   else if(near.type==='market') txt=`<span class="key">E</span> Open <b>Market</b>`;
+  else if(near.type==='gear') txt=`<span class="key">E</span> Open <b>Gear Shop</b>`;
+  else if(near.type==='friendplot'){ const f=state.friends[near.friend]; txt=`🔒 ${f.avatar} <b>${f.name}'s garden</b> — view only`; }
   else if(near.type==='plot'){
     const pl=state.plots[near.index];
     if(pl.seedId){
@@ -1022,6 +1130,7 @@ function importCode(code){
   if(!d.gearShop || !Object.keys(d.gearShop).length){ d.gearShop={}; }
   if(d.tool!=='shovel' && d.tool!=='can') d.tool='none';
   if(typeof d.wateringUses!=='number') d.wateringUses=0;
+  if(!Array.isArray(d.friends)) d.friends=[];
   logs = Array.isArray(d.logs)? d.logs : [];
   state = d;
   save(); renderHUD(); renderHotbar();
@@ -1065,6 +1174,8 @@ document.getElementById('loadSave').onclick=()=>{
   try{ importCode(document.getElementById('saveCodeIn').value); }
   catch(e){ toast('Hmm, that code didn’t work.'); }
 };
+document.getElementById('friendsBtn').onclick=()=>{ if(state.setupDone) openFriends(); };
+document.getElementById('addFriendBtn').onclick=addFriend;
 document.getElementById('notif').onclick=()=>{ document.getElementById('notif').classList.remove('show'); if(state.setupDone) openSeedShop(); };
 document.getElementById('clearHist').onclick=()=>{ if(confirm('Clear your history? (progress is kept)')){ logs=[]; save(); renderHistory(); } };
 document.getElementById('resetBtn').onclick=()=>{ if(confirm('Reset all progress?')){ localStorage.removeItem('sproutWorld'); location.reload(); } };
@@ -1074,6 +1185,7 @@ if(!state.shop || Object.keys(state.shop).length===0) rollStock();
 if(!state.gearShop || Object.keys(state.gearShop).length===0) rollGearStock();
 if(state.tool!=='shovel' && state.tool!=='can') state.tool='none';
 if(typeof state.wateringUses!=='number') state.wateringUses=0;
+if(!Array.isArray(state.friends)) state.friends=[];
 buildSetup();
 if(!state.setupDone) show('setupOverlay');
 renderHUD(); renderHotbar();
