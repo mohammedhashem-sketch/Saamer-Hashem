@@ -414,6 +414,7 @@ const SUMMER_CYCLE = 5*60*1000;    // when to start the next summer if none is r
 const SUMMER_DUR   = 7*24*60*60*1000;  // the summer event lasts a whole week!
 // Fishing loot table (weighted). kind: coins | pack | seed
 const FISH_LOOT = [
+  { w:130, kind:'nothing'         },
   { w:30,  kind:'coins', amt:500  },
   { w:24,  kind:'pack'            },
   { w:15,  kind:'coins', amt:1000 },
@@ -808,6 +809,11 @@ function fish(){
   let total=0; for(const it of FISH_LOOT) total+=it.w;
   let r=Math.random()*total, pick=FISH_LOOT[0];
   for(const it of FISH_LOOT){ r-=it.w; if(r<=0){ pick=it; break; } }
+  if(pick.kind==='nothing'){
+    const misses=['🎣 Nothing… the fish got away!','🎣 Ooh, so close! Nothing this time.','🎣 Just an old boot. Nothing!','🎣 The line came back empty. Try again!'];
+    toast(misses[Math.floor(Math.random()*misses.length)]);
+    return;
+  }
   if(pick.kind==='coins'){
     state.summerCoins=(state.summerCoins||0)+pick.amt;
     toast(`🎣 Caught ${pick.amt} 🏖️ Summer Coins!`);
