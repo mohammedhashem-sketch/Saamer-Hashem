@@ -252,7 +252,7 @@
     <p class="sub">A fishing event starts every 5 minutes. During it, fish to catch seeds and 🏖️ Summer Coins, then spend them in the summer shop!</p>
     <div class="disclaimer" style="display:flex;justify-content:space-between;align-items:center">
       <span>🏖️ <b id="summerCoins">0</b> Summer Coins</span>
-      <span>🎣 <b id="summerLeft">--</b></span>
+      <span>⏳ Leaves in <b id="summerLeft">--</b></span>
     </div>
     <button class="primary" id="fishBtn" style="background:#2f8ac7">🎣 Go Fishing!</button>
     <div class="sectlabel" style="margin-top:16px">Summer Shop — spend 🏖️</div>
@@ -409,9 +409,10 @@ const GEAR_MAP = Object.fromEntries(GEAR.map(g=>[g.id,g]));
 const SEED_MAP = Object.fromEntries(SEEDS.map(s=>[s.id,s]));
 const RARITY_ORDER = {common:0,rare:1,epic:2,legendary:3,mythic:4,exclusive:5,supermythic:6};
 
-// ---- Summer stand (permanent) + fishing events every 5 minutes ----
-const FISHING_CYCLE = 5*60*1000;   // a fishing event starts every 5 minutes
-const FISHING_DUR   = 2*60*1000;   // each fishing event lasts 2 minutes
+// ---- Summer stand (leaves after a week) + fishing events every 5 minutes ----
+const SUMMER_DUR    = 7*24*60*60*1000;  // the stand stays for a week, then leaves
+const FISHING_CYCLE = 5*60*1000;        // a fishing event starts every 5 minutes
+const FISHING_DUR   = 2*60*1000;        // each fishing event lasts 2 minutes
 // Fishing loot (weighted). Mostly nothing; a Seed Pack gives a random seed.
 const FISH_LOOT = [
   { w:130, kind:'nothing'         },
@@ -499,6 +500,8 @@ let state = load() || {
   event:null,         // {type, until}  active weather event
   nextEventCheck:0,   // when to next roll for an event
   summerCoins:0,      // 🏖️ currency
+  summerUntil:0,      // when the summer stand leaves
+  nextSummer:0,       // when the next summer stand arrives
   fishUntil:0,        // when the current fishing event ends
   nextFish:0,         // when the next fishing event starts
   xp:0,
@@ -657,7 +660,7 @@ function nearestInteractable(){
       if(d<52 && d<bestD){ bestD=d; best={type:'friendplot', friend:fi}; }
     });
   });
-  {
+  if(summerActive()){
     const d=Math.hypot(p.x-SUMMER_STAND.door.x, p.y-SUMMER_STAND.door.y);
     if(d<75 && d<bestD){ bestD=d; best={type:'summer'}; }
   }
@@ -778,18 +781,29 @@ function rollTrait(){
   return best;
 }
 
-// ---- Summer stand (always here) + fishing events ----
-function fishingActive(){ return now() < state.fishUntil; }
+// ---- Summer stand (leaves after a week) + fishing events ----
+function summerActive(){ return now() < state.summerUntil; }
+function fishingActive(){ return summerActive() && now() < state.fishUntil; }
 function maybeSummer(){
-  if(state.fishUntil && now()>=state.fishUntil){           // fishing event ended
-    state.fishUntil=0;
-    log('🎣 The fishing event ended — next one in 5 minutes.');
+  // stand lifetime (leaves after a week, then a fresh one arrives)
+  if(state.summerUntil && now()>=state.summerUntil){ state.summerUntil=0; log('🏖️ The summer stand packed up and left.'); }
+  if(!summerActive() && now()>=state.nextSummer){
+    state.summerUntil = now()+SUMMER_DUR;
+    state.nextSummer  = now()+SUMMER_DUR;   // a new stand arrives right when this one leaves
+    state.nextFish    = now()+30*1000;      // first fishing event ~30s in
+    log('🏖️ The <b>summer stand</b> arrived! Fishing events start soon.');
+    notify('🏖️ The summer stand arrived at the beach!');
   }
-  if(!fishingActive() && now()>=state.nextFish){           // new fishing event
-    state.fishUntil = now()+FISHING_DUR;
-    state.nextFish  = now()+FISHING_CYCLE;
-    log('🎣 A <b>fishing event</b> started at the summer stand! The fish are biting!');
-    notify('🎣 <b>Fishing event!</b> The fish are biting at the beach stand!');
+  // fishing events (only while the stand is here)
+  if(summerActive()){
+    if(state.fishUntil && now()>=state.fishUntil){ state.fishUntil=0; log('🎣 The fishing event ended — next one in 5 minutes.'); }
+    if(now() < state.fishUntil){ /* active */ }
+    else if(now()>=state.nextFish){
+      state.fishUntil = now()+FISHING_DUR;
+      state.nextFish  = now()+FISHING_CYCLE;
+      log('🎣 A <b>fishing event</b> started! The fish are biting!');
+      notify('🎣 <b>Fishing event!</b> The fish are biting at the beach stand!');
+    }
   }
 }
 // A random seed with rarity odds like the seed shop — includes summer fruits.
@@ -972,9 +986,9 @@ function openSummer(){ renderSummer(); show('summerOverlay'); }
 function renderSummer(){
   document.getElementById('summerCoins').textContent = (state.summerCoins||0).toLocaleString();
   const fishing=fishingActive();
-  document.getElementById('summerLeft').textContent = fishing? ('fishing! '+fmtTime((state.fishUntil-now())/1000)) : ('next fishing '+fmtTime((state.nextFish-now())/1000));
+  document.getElementById('summerLeft').textContent = summerActive()? fmtTime((state.summerUntil-now())/1000) : 'gone';
   const fb=document.getElementById('fishBtn');
-  fb.disabled=!fishing; fb.textContent = fishing? '🎣 Go Fishing!' : '🎣 Wait for the fishing event…';
+  fb.disabled=!fishing; fb.textContent = fishing? `🎣 Go Fishing! (${fmtTime((state.fishUntil-now())/1000)} left)` : `🎣 Next fishing in ${fmtTime((state.nextFish-now())/1000)}`;
   const shop=document.getElementById('summerShop'); shop.innerHTML='';
   SUMMER_SHOP.forEach((it,i)=>{
     const afford=(state.summerCoins||0)>=it.cost;
@@ -1146,7 +1160,7 @@ function draw(){
   state.friends.forEach((f,fi)=>drawFriendGarden(f,fi, near&&near.type==='friendplot'&&near.friend===fi));
 
   // summer stand (only during a summer event)
-  drawSummerStand(near&&near.type==='summer');
+  if(summerActive()) drawSummerStand(near&&near.type==='summer');
 
   // trees
   TREES.forEach(drawTree);
@@ -1261,18 +1275,18 @@ function drawSummerStand(active){
   ctx.strokeStyle='#8a6a3a'; ctx.lineWidth=4; ctx.beginPath(); ctx.moveTo(ux,uy); ctx.lineTo(ux,b.y+b.h); ctx.stroke();
   // sign emoji
   ctx.font='30px serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('🎣', cx, b.y+b.h*0.72);
-  // TIMER 1: name banner on top
+  // TIMER 1: "leaves in" deletion countdown on top
   ctx.font='700 13px Segoe UI, sans-serif';
-  const l1=`🏖️ Summer Stand`; const tw=ctx.measureText(l1).width;
-  roundRectRaw(cx-tw/2-9, b.y-92, tw+18, 22, 8); ctx.fillStyle=active?'#c78a2f':'rgba(15,30,19,.92)'; ctx.fill();
-  ctx.fillStyle='#fff'; ctx.fillText(l1, cx, b.y-81);
-  // TIMER 2: fishing-event countdown below the banner
+  const l1=`⏳ Leaves in ${fmtTime((state.summerUntil-now())/1000)}`; const tw=ctx.measureText(l1).width;
+  roundRectRaw(cx-tw/2-9, b.y-116, tw+18, 22, 8); ctx.fillStyle=active?'#c78a2f':'rgba(15,30,19,.92)'; ctx.fill();
+  ctx.fillStyle='#fff'; ctx.fillText(l1, cx, b.y-105);
+  // TIMER 2: fishing-event countdown below it
   const fishing=fishingActive();
-  const l2 = fishing ? `🎣 Fishing! ${fmtTime((state.fishUntil-now())/1000)}` : `⏳ Next fishing ${fmtTime((state.nextFish-now())/1000)}`;
+  const l2 = fishing ? `🎣 Fishing! ${fmtTime((state.fishUntil-now())/1000)}` : `🎣 Next fishing ${fmtTime((state.nextFish-now())/1000)}`;
   ctx.font='700 12px Segoe UI, sans-serif';
   const tw2=ctx.measureText(l2).width;
-  roundRectRaw(cx-tw2/2-8, b.y-68, tw2+16, 20, 7); ctx.fillStyle=fishing?'rgba(47,138,199,.95)':'rgba(199,138,47,.95)'; ctx.fill();
-  ctx.fillStyle=fishing?'#fff':'#2a1a00'; ctx.fillText(l2, cx, b.y-58);
+  roundRectRaw(cx-tw2/2-8, b.y-92, tw2+16, 20, 7); ctx.fillStyle=fishing?'rgba(47,138,199,.95)':'rgba(199,138,47,.95)'; ctx.fill();
+  ctx.fillStyle=fishing?'#fff':'#2a1a00'; ctx.fillText(l2, cx, b.y-82);
 }
 function drawFriendGarden(f, fi, active){
   const plots=friendPlots(fi);
@@ -1431,6 +1445,8 @@ function importCode(code){
   if(typeof d.wateringUses!=='number') d.wateringUses=0;
   if(!Array.isArray(d.friends)) d.friends=[];
   if(typeof d.summerCoins!=='number') d.summerCoins=0;
+  if(typeof d.summerUntil!=='number') d.summerUntil=0;
+  if(!d.nextSummer) d.nextSummer=now();
   if(typeof d.fishUntil!=='number') d.fishUntil=0;
   if(!d.nextFish) d.nextFish=now()+30*1000;
   logs = Array.isArray(d.logs)? d.logs : [];
@@ -1492,6 +1508,9 @@ if(!Array.isArray(state.friends)) state.friends=[];
 if(!state.nextEventCheck) state.nextEventCheck = now()+90*1000;  // first event soon, then every 10 min
 if(state.event && now()>=state.event.until) state.event=null;
 if(typeof state.summerCoins!=='number') state.summerCoins=0;
+if(typeof state.summerUntil!=='number') state.summerUntil=0;
+if(!state.nextSummer) state.nextSummer = now();  // stand arrives right away
+if(state.summerUntil && now()>=state.summerUntil) state.summerUntil=0;
 if(typeof state.fishUntil!=='number') state.fishUntil=0;
 if(!state.nextFish) state.nextFish = now()+30*1000;  // first fishing event ~30s in, then every 5 min
 if(state.fishUntil && now()>=state.fishUntil) state.fishUntil=0;
