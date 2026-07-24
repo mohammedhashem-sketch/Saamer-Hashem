@@ -51,6 +51,7 @@
   .chip.leaf{color:#7fe6a8;border-color:#2f7d4a}
   .chip.cur{color:#bfe6c8}
   .chip.spr{color:#7fd0ff;border-color:#4a7fa8}
+  .chip.ev{color:#ffe9a8;border-color:var(--gold)}
 
   .histlist{max-height:52vh;overflow:auto;display:flex;flex-direction:column;gap:6px}
   .hitem{display:flex;justify-content:space-between;gap:10px;padding:8px 10px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;font-size:13.5px;line-height:1.4}
@@ -172,6 +173,7 @@
     <div class="chip coins">🪙 <span id="hudCoins">0</span></div>
     <div class="chip">🌾 <span id="hudCrops">0</span> crops</div>
     <div class="chip spr" id="hudSpr" style="display:none"></div>
+    <div class="chip ev" id="hudEvent" style="display:none"></div>
   </div>
 </div>
 
@@ -327,6 +329,20 @@ const SEEDS = [
 ];
 const REGROW_MS = 5*60*1000;   // each harvested fruit regrows in 5 minutes
 
+// ---- Crop traits (mutations) — a harvested fruit can gain one, boosting value ----
+const TRAITS = {
+  wet:       { mult:2, label:'Wet',       emoji:'💧' },
+  slippery:  { mult:2, label:'Slippery',  emoji:'✨' },
+  sparkling: { mult:4, label:'Sparkling', emoji:'🌟' },
+  zombie:    { mult:6, label:'Zombie',    emoji:'🧟' },
+};
+// ---- Weather / trait events ----
+const EVENT_CHECK_MS = 90*1000;   // how often the game rolls for a new event
+const EVENTS = {
+  rain:   { name:'Rain',   emoji:'🌧️', startChance:0.25, dur:60000, trait:'wet',    traitChance:0.50 },
+  zombie: { name:'Zombie', emoji:'🧟', startChance:0.30, dur:45000, trait:'zombie', traitChance:0.30 },
+};
+
 // ---- Gear Shop: tools & sprinklers (restock with these chances) ----
 const SPRINKLER_MS = 10*60*1000;  // sprinklers last 10 minutes
 const WATER_SKIP_MS = 5*60*1000;  // watering can skips 5 minutes per use
@@ -408,6 +424,8 @@ let state = load() || {
   friends:[],         // [{name, avatar, seeds:[6 seedIds]}] — view-only gardens
   wateringUses:0,     // watering-can charges left
   sprinkler:null,     // {tier, mult, until}  active garden sprinkler
+  event:null,         // {type, until}  active weather event
+  nextEventCheck:0,   // when to next roll for an event
   xp:0,
 };
 // migrate plot positions + shape onto saved plot data
@@ -602,22 +620,25 @@ function handlePlot(i){
   if(pl.seedId){
     const s=SEED_MAP[pl.seedId];
     if(pl.fruits>0){
-      const mult=moneyMult();                 // ✨ slippery bonus from a good/strong sprinkler
+      const trait = rollTrait();               // 💧 wet / 🧟 zombie / ✨ sprinkler trait, or null
+      const t = trait ? TRAITS[trait] : null;
+      const mult = t ? t.mult : 1;
       const take = s.oneTime ? pl.fruits : 1;  // commons give everything once, then vanish
-      const key = mult>1 ? s.id+'*'+mult : s.id;
+      const key = trait ? s.id+'#'+trait : s.id;
       state.cropInv[key]=(state.cropInv[key]||0)+take;
       state.xp += Math.round(s.sell*mult*take/10);
       pl.fruits -= take;
-      const slip = mult>1 ? (mult>=4?'✨ Super Slippery ':'✨ Slippery ') : '';
+      const tag = t ? `${t.emoji} ${t.label} ` : '';
+      if(t && trait!=='slippery' && trait!=='sparkling') notify(`${t.emoji} Got a <b>${t.label} ${s.name}</b> — sells ×${mult}!`);
       if(s.oneTime){
         pl.seedId=null; pl.timers=[]; pl.fruits=0;
-        toast(`Harvested ${take}× ${slip}${s.emoji} ${s.name}!`);
-        log(`Harvested <b>${take}× ${slip}${s.name}</b> (one-time)`);
+        toast(`Harvested ${take}× ${tag}${s.emoji} ${s.name}!`);
+        log(`Harvested <b>${take}× ${tag}${s.name}</b> (one-time)`);
       } else {
         updatePlots();   // queue the 5-min regrow for the emptied slot
         const leftTxt = pl.fruits>0 ? ` · ${pl.fruits} left` : '';
-        toast(`Harvested 1 ${slip}${s.emoji} ${s.name}${leftTxt}`);
-        log(`Harvested <b>1 ${slip}${s.name}</b> (regrows in 5m)`);
+        toast(`Harvested 1 ${tag}${s.emoji} ${s.name}${leftTxt}`);
+        log(`Harvested <b>1 ${tag}${s.name}</b> (regrows in 5m)`);
       }
     } else {
       const next=pl.timers.reduce((m,t)=>Math.min(m,t.at), Infinity);
@@ -642,8 +663,40 @@ function handlePlot(i){
 
 // ---- Sprinkler helpers (timestamp-based → work offline) ----
 function sprinklerActive(){ return state.sprinkler && now()<state.sprinkler.until ? state.sprinkler : null; }
-function moneyMult(){ const s=sprinklerActive(); return s && s.mult>1 ? s.mult : 1; }
 function basicActive(){ const s=sprinklerActive(); return s && s.tier==='basic'; }
+
+// ---- Weather events + crop traits ----
+function activeEvent(){ return state.event && now()<state.event.until ? state.event : null; }
+function maybeEvent(){
+  // event ended?
+  if(state.event && now()>=state.event.until){
+    const e=EVENTS[state.event.type];
+    log(`${e.emoji} The ${e.name} event ended.`);
+    state.event=null;
+  }
+  // roll for a new one
+  if(!state.event && now()>=state.nextEventCheck){
+    state.nextEventCheck = now()+EVENT_CHECK_MS;
+    const r=Math.random();
+    let acc=0, started=null;
+    for(const key in EVENTS){ acc+=EVENTS[key].startChance; if(r<acc){ started=key; break; } }
+    if(started){
+      const e=EVENTS[started];
+      state.event={ type:started, until: now()+e.dur };
+      log(`${e.emoji} A <b>${e.name}</b> event started! Harvested fruit can become ${TRAITS[e.trait].emoji} ${TRAITS[e.trait].label} (×${TRAITS[e.trait].mult}).`);
+      notify(`${e.emoji} <b>${e.name}!</b> Harvest now for ${TRAITS[e.trait].emoji} ${TRAITS[e.trait].label} fruit (×${TRAITS[e.trait].mult})!`);
+    }
+  }
+}
+// Decide the trait of a just-harvested fruit (best of event + sprinkler).
+function rollTrait(){
+  let best=null, bestMult=1;
+  const ev=activeEvent();
+  if(ev){ const e=EVENTS[ev.type]; if(Math.random()<e.traitChance){ best=e.trait; bestMult=TRAITS[e.trait].mult; } }
+  const sp=sprinklerActive();
+  if(sp && sp.mult>1){ const tr = sp.tier==='strong'?'sparkling':'slippery'; if(TRAITS[tr].mult>bestMult){ best=tr; bestMult=TRAITS[tr].mult; } }
+  return best;
+}
 
 // ---- Shop restock ----
 function rollStock(){
@@ -698,9 +751,18 @@ function forceRestock(){
   renderShop(); renderHUD();
 }
 // A crop key is either "id" or "id*mult" (slippery bonus). Parse it.
-function parseCrop(key){ const [id,m]=key.split('*'); return { seed:SEED_MAP[id], mult:m?parseInt(m):1 }; }
+function parseCrop(key){
+  if(key.includes('#')){ const [id,tr]=key.split('#'); return { seed:SEED_MAP[id], trait:tr, mult:(TRAITS[tr]?TRAITS[tr].mult:1) }; }
+  const [id,m]=key.split('*');  // legacy numeric-multiplier keys from older saves
+  return { seed:SEED_MAP[id], trait:null, mult:m?parseInt(m):1 };
+}
 function cropValue(key){ const c=parseCrop(key); return c.seed.sell*c.mult; }
-function cropLabel(key){ const c=parseCrop(key); const tag=c.mult>=4?'✨ Super Slippery ':c.mult>1?'✨ Slippery ':''; return tag+c.seed.name; }
+function cropLabel(key){
+  const c=parseCrop(key);
+  const t = c.trait && TRAITS[c.trait];
+  const tag = t ? `${t.emoji} ${t.label} ` : (c.mult>=4?'✨ Super Slippery ':c.mult>1?'✨ Slippery ':'');
+  return tag+c.seed.name;
+}
 function sellCrop(key){
   const n=state.cropInv[key]; if(!n) return;
   const v=cropValue(key)*n; delete state.cropInv[key];
@@ -842,7 +904,7 @@ function renderMarket(){
     const d=document.createElement('div'); d.className='row';
     d.innerHTML=`<div class="ico">${c.seed.emoji}</div>
       <div class="info">
-        <div class="nm">${cropLabel(key)} <span class="rar ${c.mult>1?'exclusive':c.seed.rarity}">${c.mult>1?'slippery':c.seed.rarity}</span></div>
+        <div class="nm">${cropLabel(key)} <span class="rar ${c.mult>1?'exclusive':c.seed.rarity}">${c.trait?TRAITS[c.trait].label:(c.mult>1?'special':c.seed.rarity)}</span></div>
         <div class="sub2">×${n} in basket · ${each} 🪙 each</div>
       </div>
       <button class="btn sell">Sell ${each*n} 🪙</button>`;
@@ -938,8 +1000,33 @@ function draw(){
 
   ctx.restore();
 
+  // weather overlay (screen space)
+  drawWeather();
+
   // interaction prompt (screen space)
   updatePrompt(near);
+}
+
+// Rain streaks / zombie tint over the whole screen during an event.
+let rainDrops=null;
+function drawWeather(){
+  const ev=activeEvent(); if(!ev) return;
+  if(ev.type==='rain'){
+    if(!rainDrops){ rainDrops=[]; for(let i=0;i<90;i++) rainDrops.push({x:Math.random()*VW, y:Math.random()*VH, s:6+Math.random()*7}); }
+    ctx.fillStyle='rgba(40,80,140,.10)'; ctx.fillRect(0,0,VW,VH);
+    ctx.strokeStyle='rgba(170,200,255,.55)'; ctx.lineWidth=2;
+    ctx.beginPath();
+    for(const d of rainDrops){ ctx.moveTo(d.x,d.y); ctx.lineTo(d.x-3,d.y+12); d.y+=d.s*4; d.x-=d.s; if(d.y>VH){d.y=-10;d.x=Math.random()*VW;} if(d.x<0)d.x=VW; }
+    ctx.stroke();
+  } else if(ev.type==='zombie'){
+    ctx.fillStyle='rgba(30,60,20,.22)'; ctx.fillRect(0,0,VW,VH);
+    ctx.font='40px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    const t=now()/600;
+    ctx.globalAlpha=.5;
+    ctx.fillText('🧟', VW*0.5+Math.sin(t)*VW*0.35, VH*0.2);
+    ctx.fillText('🧟', VW*0.5+Math.cos(t*0.8)*VW*0.4, VH*0.8);
+    ctx.globalAlpha=1;
+  }
 }
 
 function drawPlot(pl,i,active){
@@ -1186,6 +1273,8 @@ if(!state.gearShop || Object.keys(state.gearShop).length===0) rollGearStock();
 if(state.tool!=='shovel' && state.tool!=='can') state.tool='none';
 if(typeof state.wateringUses!=='number') state.wateringUses=0;
 if(!Array.isArray(state.friends)) state.friends=[];
+if(!state.nextEventCheck) state.nextEventCheck = now()+EVENT_CHECK_MS;
+if(state.event && now()>=state.event.until) state.event=null;
 buildSetup();
 if(!state.setupDone) show('setupOverlay');
 renderHUD(); renderHotbar();
@@ -1196,6 +1285,7 @@ if(!storageOk){ setTimeout(()=>notify('⚠️ This link can’t save by itself �
 let sprWasActive=false;
 setInterval(()=>{
   maybeRestock();
+  maybeEvent();
   const rem=Math.max(0,Math.ceil((RESTOCK_MS-(now()-state.lastRestock))/1000));
   const mm=Math.floor(rem/60), ss=String(rem%60).padStart(2,'0');
   const el=document.getElementById('restockIn'); if(el) el.textContent=`${mm}:${ss}`;
@@ -1203,6 +1293,10 @@ setInterval(()=>{
   const a=sprinklerActive(); const sprEl=document.getElementById('hudSpr');
   if(a){ const g=GEAR_MAP[a.tier]; sprEl.style.display='flex'; sprEl.textContent=`${g.emoji} ${fmtTime((a.until-now())/1000)}`; sprWasActive=true; }
   else { sprEl.style.display='none'; if(sprWasActive){ sprWasActive=false; toast('Sprinkler ran out!'); } }
+  // live weather event HUD chip
+  const ev=activeEvent(); const evEl=document.getElementById('hudEvent');
+  if(ev){ const e=EVENTS[ev.type]; evEl.style.display='flex'; evEl.textContent=`${e.emoji} ${e.name} ${fmtTime((ev.until-now())/1000)}`; }
+  else evEl.style.display='none';
   if(document.getElementById('gearOverlay').classList.contains('show')) renderGear();
 },400);
 
