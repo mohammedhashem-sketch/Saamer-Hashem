@@ -249,10 +249,10 @@
   <div class="modal">
     <span class="x" data-close="summerOverlay">✕</span>
     <h2>🏖️ Summer Stand</h2>
-    <p class="sub">Go fishing to catch seeds and 🏖️ Summer Coins, then spend them in the summer shop! The stand leaves when the timer runs out.</p>
+    <p class="sub">A fishing event starts every 5 minutes. During it, fish to catch seeds and 🏖️ Summer Coins, then spend them in the summer shop!</p>
     <div class="disclaimer" style="display:flex;justify-content:space-between;align-items:center">
       <span>🏖️ <b id="summerCoins">0</b> Summer Coins</span>
-      <span>⏳ Leaves in <b id="summerLeft">--</b></span>
+      <span>🎣 <b id="summerLeft">--</b></span>
     </div>
     <button class="primary" id="fishBtn" style="background:#2f8ac7">🎣 Go Fishing!</button>
     <div class="sectlabel" style="margin-top:16px">Summer Shop — spend 🏖️</div>
@@ -409,29 +409,26 @@ const GEAR_MAP = Object.fromEntries(GEAR.map(g=>[g.id,g]));
 const SEED_MAP = Object.fromEntries(SEEDS.map(s=>[s.id,s]));
 const RARITY_ORDER = {common:0,rare:1,epic:2,legendary:3,mythic:4,exclusive:5,supermythic:6};
 
-// ---- Summer event (fishing) ----
-const SUMMER_CYCLE = 5*60*1000;    // when to start the next summer if none is running
-const SUMMER_DUR   = 7*24*60*60*1000;  // the summer event lasts a whole week!
-// Fishing loot table (weighted). kind: coins | pack | seed
+// ---- Summer stand (permanent) + fishing events every 5 minutes ----
+const FISHING_CYCLE = 5*60*1000;   // a fishing event starts every 5 minutes
+const FISHING_DUR   = 2*60*1000;   // each fishing event lasts 2 minutes
+// Fishing loot (weighted). Mostly nothing; a Seed Pack gives a random seed.
 const FISH_LOOT = [
   { w:130, kind:'nothing'         },
   { w:30,  kind:'coins', amt:500  },
-  { w:24,  kind:'pack'            },
+  { w:25,  kind:'pack'            },
   { w:15,  kind:'coins', amt:1000 },
-  { w:12,  kind:'seed',  id:'pineapple' },
-  { w:8,   kind:'seed',  id:'orange'    },
   { w:6,   kind:'coins', amt:2500 },
-  { w:5,   kind:'seed',  id:'squash'    },
-  { w:3,   kind:'seed',  id:'pitcher'   },
-  { w:1.5, kind:'seed',  id:'elephantear' },
-  { w:0.5, kind:'seed',  id:'sunlight'  },
 ];
+// Seed-pack odds by rarity (same idea as the seed shop). Sun Boom (exclusive)
+// is NOT in the pack — it's the rarest, shop-only.
+const PACK_W = { common:1, rare:0.3, epic:0.1, legendary:0.01, mythic:0.001, supermythic:0.0001 };
 // Summer shop — spend 🏖️ summer coins
 const SUMMER_SHOP = [
-  { id:'sunboom',  cost:2000, kind:'seed',     name:'Sun Boom seed',       emoji:'🌻', desc:'Summer exclusive plant · sells 60,000 🪙' },
-  { id:'sunlight', cost:6000, kind:'seed',     name:'Sun Light Fruit seed',emoji:'🌞', desc:'Super Mythic · sells 800,000 🪙' },
-  { id:'wcan',     cost:800,  kind:'watercan', name:'+10 Watering Can uses',emoji:'💧', desc:'Refill your watering can' },
-  { id:'pack',     cost:400,  kind:'pack',     name:'Seed Pack',           emoji:'🎁', desc:'1 random seed (seed-shop odds)' },
+  { id:'sunboom',  cost:80000, kind:'seed',     name:'Sun Boom seed',       emoji:'🌻', desc:'★ Rarest! Summer exclusive · sells 60,000 🪙' },
+  { id:'sunlight', cost:6000,  kind:'seed',     name:'Sun Light Fruit seed',emoji:'🌞', desc:'Super Mythic · sells 800,000 🪙' },
+  { id:'wcan',     cost:800,   kind:'watercan', name:'+10 Watering Can uses',emoji:'💧', desc:'Refill your watering can' },
+  { id:'pack',     cost:400,   kind:'pack',     name:'Seed Pack',           emoji:'🎁', desc:'1 random seed (rarity odds, incl. summer fruits)' },
 ];
 
 const AVATARS = ['🧑‍🌾','👩‍🌾','👨‍🌾','🧙','🤠','🧝','👷','🐰','🦊','🐻'];
@@ -501,9 +498,9 @@ let state = load() || {
   sprinkler:null,     // {tier, mult, until}  active garden sprinkler
   event:null,         // {type, until}  active weather event
   nextEventCheck:0,   // when to next roll for an event
-  summerCoins:0,      // 🏖️ currency from the summer event
-  summerUntil:0,      // when the current summer stand leaves (0 = no event)
-  nextSummer:0,       // when the next summer event starts
+  summerCoins:0,      // 🏖️ currency
+  fishUntil:0,        // when the current fishing event ends
+  nextFish:0,         // when the next fishing event starts
   xp:0,
 };
 // migrate plot positions + shape onto saved plot data
@@ -660,7 +657,7 @@ function nearestInteractable(){
       if(d<52 && d<bestD){ bestD=d; best={type:'friendplot', friend:fi}; }
     });
   });
-  if(summerActive()){
+  {
     const d=Math.hypot(p.x-SUMMER_STAND.door.x, p.y-SUMMER_STAND.door.y);
     if(d<75 && d<bestD){ bestD=d; best={type:'summer'}; }
   }
@@ -781,31 +778,31 @@ function rollTrait(){
   return best;
 }
 
-// ---- Summer event (fishing + summer shop) ----
-function summerActive(){ return now() < state.summerUntil; }
+// ---- Summer stand (always here) + fishing events ----
+function fishingActive(){ return now() < state.fishUntil; }
 function maybeSummer(){
-  if(state.summerUntil && now()>=state.summerUntil){        // stand leaves
-    state.summerUntil=0;
-    log('🏖️ The summer stand packed up and left.');
-    if(document.getElementById('summerOverlay').classList.contains('show')) document.getElementById('summerOverlay').classList.remove('show');
+  if(state.fishUntil && now()>=state.fishUntil){           // fishing event ended
+    state.fishUntil=0;
+    log('🎣 The fishing event ended — next one in 5 minutes.');
   }
-  if(!summerActive() && now()>=state.nextSummer){           // new summer event
-    state.summerUntil = now()+SUMMER_DUR;
-    state.nextSummer  = now()+SUMMER_CYCLE;
-    log('🏖️ A <b>Summer Splash</b> started! Visit the beach stand to go fishing! 🎣');
-    notify('🏖️ <b>Summer Splash!</b> Go fishing at the beach stand! 🎣');
+  if(!fishingActive() && now()>=state.nextFish){           // new fishing event
+    state.fishUntil = now()+FISHING_DUR;
+    state.nextFish  = now()+FISHING_CYCLE;
+    log('🎣 A <b>fishing event</b> started at the summer stand! The fish are biting!');
+    notify('🎣 <b>Fishing event!</b> The fish are biting at the beach stand!');
   }
 }
-// A random seed with the same odds as the normal seed shop.
+// A random seed with rarity odds like the seed shop — includes summer fruits.
+// Sun Boom (exclusive) is excluded — it's shop-only.
 function packSeed(){
-  const pool=SEEDS.filter(s=>s.stockChance>0);
-  let total=0; for(const s of pool) total+=s.stockChance;
+  const pool=SEEDS.filter(s=>s.rarity!=='exclusive');
+  let total=0; for(const s of pool) total+=(PACK_W[s.rarity]||0.0001);
   let r=Math.random()*total;
-  for(const s of pool){ r-=s.stockChance; if(r<=0) return s.id; }
+  for(const s of pool){ r-=(PACK_W[s.rarity]||0.0001); if(r<=0) return s.id; }
   return pool[0].id;
 }
 function fish(){
-  if(!summerActive()){ toast('The summer stand is closed.'); return; }
+  if(!fishingActive()){ toast('The fish aren’t biting — wait for the next fishing event! 🎣'); return; }
   let total=0; for(const it of FISH_LOOT) total+=it.w;
   let r=Math.random()*total, pick=FISH_LOOT[0];
   for(const it of FISH_LOOT){ r-=it.w; if(r<=0){ pick=it; break; } }
@@ -974,7 +971,10 @@ function openGearShop(){ renderGear(); show('gearOverlay'); }
 function openSummer(){ renderSummer(); show('summerOverlay'); }
 function renderSummer(){
   document.getElementById('summerCoins').textContent = (state.summerCoins||0).toLocaleString();
-  document.getElementById('summerLeft').textContent = summerActive()? fmtTime((state.summerUntil-now())/1000) : 'closed';
+  const fishing=fishingActive();
+  document.getElementById('summerLeft').textContent = fishing? ('fishing! '+fmtTime((state.fishUntil-now())/1000)) : ('next fishing '+fmtTime((state.nextFish-now())/1000));
+  const fb=document.getElementById('fishBtn');
+  fb.disabled=!fishing; fb.textContent = fishing? '🎣 Go Fishing!' : '🎣 Wait for the fishing event…';
   const shop=document.getElementById('summerShop'); shop.innerHTML='';
   SUMMER_SHOP.forEach((it,i)=>{
     const afford=(state.summerCoins||0)>=it.cost;
@@ -1146,7 +1146,7 @@ function draw(){
   state.friends.forEach((f,fi)=>drawFriendGarden(f,fi, near&&near.type==='friendplot'&&near.friend===fi));
 
   // summer stand (only during a summer event)
-  if(summerActive()) drawSummerStand(near&&near.type==='summer');
+  drawSummerStand(near&&near.type==='summer');
 
   // trees
   TREES.forEach(drawTree);
@@ -1261,17 +1261,18 @@ function drawSummerStand(active){
   ctx.strokeStyle='#8a6a3a'; ctx.lineWidth=4; ctx.beginPath(); ctx.moveTo(ux,uy); ctx.lineTo(ux,b.y+b.h); ctx.stroke();
   // sign emoji
   ctx.font='30px serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('🎣', cx, b.y+b.h*0.72);
-  // TIMER 1: label banner on top
-  const left=fmtTime((state.summerUntil-now())/1000);
+  // TIMER 1: name banner on top
   ctx.font='700 13px Segoe UI, sans-serif';
-  const l1=`🏖️ Summer`; const tw=ctx.measureText(l1).width;
+  const l1=`🏖️ Summer Stand`; const tw=ctx.measureText(l1).width;
   roundRectRaw(cx-tw/2-9, b.y-92, tw+18, 22, 8); ctx.fillStyle=active?'#c78a2f':'rgba(15,30,19,.92)'; ctx.fill();
   ctx.fillStyle='#fff'; ctx.fillText(l1, cx, b.y-81);
-  // TIMER 2 (deletion countdown): floating below the top banner
-  const l2=`⏳ Leaves in ${left}`; ctx.font='700 12px Segoe UI, sans-serif';
+  // TIMER 2: fishing-event countdown below the banner
+  const fishing=fishingActive();
+  const l2 = fishing ? `🎣 Fishing! ${fmtTime((state.fishUntil-now())/1000)}` : `⏳ Next fishing ${fmtTime((state.nextFish-now())/1000)}`;
+  ctx.font='700 12px Segoe UI, sans-serif';
   const tw2=ctx.measureText(l2).width;
-  roundRectRaw(cx-tw2/2-8, b.y-68, tw2+16, 20, 7); ctx.fillStyle='rgba(199,138,47,.95)'; ctx.fill();
-  ctx.fillStyle='#2a1a00'; ctx.fillText(l2, cx, b.y-58);
+  roundRectRaw(cx-tw2/2-8, b.y-68, tw2+16, 20, 7); ctx.fillStyle=fishing?'rgba(47,138,199,.95)':'rgba(199,138,47,.95)'; ctx.fill();
+  ctx.fillStyle=fishing?'#fff':'#2a1a00'; ctx.fillText(l2, cx, b.y-58);
 }
 function drawFriendGarden(f, fi, active){
   const plots=friendPlots(fi);
@@ -1430,8 +1431,8 @@ function importCode(code){
   if(typeof d.wateringUses!=='number') d.wateringUses=0;
   if(!Array.isArray(d.friends)) d.friends=[];
   if(typeof d.summerCoins!=='number') d.summerCoins=0;
-  if(typeof d.summerUntil!=='number') d.summerUntil=0;
-  if(!d.nextSummer) d.nextSummer=now()+60*1000;
+  if(typeof d.fishUntil!=='number') d.fishUntil=0;
+  if(!d.nextFish) d.nextFish=now()+30*1000;
   logs = Array.isArray(d.logs)? d.logs : [];
   state = d;
   save(); renderHUD(); renderHotbar();
@@ -1491,9 +1492,9 @@ if(!Array.isArray(state.friends)) state.friends=[];
 if(!state.nextEventCheck) state.nextEventCheck = now()+90*1000;  // first event soon, then every 10 min
 if(state.event && now()>=state.event.until) state.event=null;
 if(typeof state.summerCoins!=='number') state.summerCoins=0;
-if(typeof state.summerUntil!=='number') state.summerUntil=0;
-if(!state.nextSummer) state.nextSummer = now()+60*1000;  // first summer ~1 min in, then every 5 min
-if(state.summerUntil && now()>=state.summerUntil) state.summerUntil=0;
+if(typeof state.fishUntil!=='number') state.fishUntil=0;
+if(!state.nextFish) state.nextFish = now()+30*1000;  // first fishing event ~30s in, then every 5 min
+if(state.fishUntil && now()>=state.fishUntil) state.fishUntil=0;
 buildSetup();
 if(!state.setupDone) show('setupOverlay');
 renderHUD(); renderHotbar();
@@ -1519,8 +1520,8 @@ setInterval(()=>{
   else evEl.style.display='none';
   // live summer HUD chip (timer on top): shows event timer, or countdown to next
   const suEl=document.getElementById('hudSummer');
-  if(summerActive()){ suEl.style.display='flex'; suEl.textContent=`🏖️ Summer ${fmtTime((state.summerUntil-now())/1000)}`; }
-  else if(state.nextSummer){ suEl.style.display='flex'; suEl.textContent=`🏖️ next ${fmtTime((state.nextSummer-now())/1000)}`; }
+  if(fishingActive()){ suEl.style.display='flex'; suEl.textContent=`🎣 Fishing ${fmtTime((state.fishUntil-now())/1000)}`; }
+  else if(state.nextFish){ suEl.style.display='flex'; suEl.textContent=`🎣 next ${fmtTime((state.nextFish-now())/1000)}`; }
   else suEl.style.display='none';
   if(document.getElementById('gearOverlay').classList.contains('show')) renderGear();
   if(document.getElementById('summerOverlay').classList.contains('show')) renderSummer();
