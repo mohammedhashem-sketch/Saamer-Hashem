@@ -114,6 +114,8 @@
   .rar.common{background:var(--common)} .rar.rare{background:var(--rare);color:#fff}
   .rar.epic{background:var(--epic);color:#fff} .rar.legendary{background:var(--legendary)} .rar.mythic{background:var(--mythic);color:#fff}
   .rar.exclusive{background:linear-gradient(90deg,#ff4d7d,#ffab38,#5be08a,#4aa3ff);color:#fff}
+  .rar.supermythic{background:linear-gradient(90deg,#ff4d7d,#b56cff,#4aa3ff,#5be08a,#ffd54a,#ff4d7d);background-size:300% 100%;color:#fff;animation:shine 3s linear infinite;text-shadow:0 1px 2px rgba(0,0,0,.4)}
+  @keyframes shine{0%{background-position:0% 0}100%{background-position:300% 0}}
 
   /* Leaf Shop (premium) */
   .disclaimer{background:rgba(255,213,74,.12);border:1px solid var(--gold);border-radius:10px;padding:9px 12px;font-size:12px;color:#ffe9a8;margin-bottom:14px;line-height:1.5}
@@ -224,7 +226,7 @@
     <p class="sub">Rarer seeds have a lower chance to be in stock. The shop re-rolls its stock every 4 minutes.</p>
     <div class="restock">Restock in <b><span id="restockIn">--</span>s</b></div>
     <div id="shopList"></div>
-    <div class="foot"><button class="btn" id="forceRestock" style="flex:1">🔄 Restock Now (5 🪙)</button></div>
+    <div class="foot"><button class="btn" id="forceRestock" style="flex:1">🔄 Restock Now (100,000 🪙)</button></div>
   </div>
 </div>
 
@@ -326,21 +328,31 @@ const SEEDS = [
   { id:'dragonfruit',name:'Dragon Fruit', emoji:'🐉', rarity:'legendary', cost:16000,  grow:3600,  sell:7500,     stockChance:0.010, cap:4 },
   { id:'celestial', name:'Celestial Rose',emoji:'🌹', rarity:'mythic',    cost:100000, grow:7200,  sell:28000,    stockChance:0.001, cap:1 },
   { id:'phoenix',   name:'Phoenix Bloom', emoji:'🔥', rarity:'mythic',    cost:140000, grow:7200,  sell:40000,    stockChance:0.001, cap:2 },
+  // ✦ Super Mythic — 0.01% stock, over a million coins each ✦
+  { id:'galaxy',    name:'Galaxy Flower', emoji:'🌌', rarity:'supermythic', cost:1500000,  grow:7200, sell:1000000, stockChance:0.0001, cap:3 },
+  { id:'diamond',   name:'Diamond Rose',  emoji:'💎', rarity:'supermythic', cost:3000000,  grow:7200, sell:2000000, stockChance:0.0001, cap:2 },
+  { id:'unicorn',   name:'Unicorn Bloom', emoji:'🦄', rarity:'supermythic', cost:6000000,  grow:7200, sell:4000000, stockChance:0.0001, cap:2 },
 ];
 const REGROW_MS = 5*60*1000;   // each harvested fruit regrows in 5 minutes
 
 // ---- Crop traits (mutations) — a harvested fruit can gain one, boosting value ----
 const TRAITS = {
-  wet:       { mult:2, label:'Wet',       emoji:'💧' },
-  slippery:  { mult:2, label:'Slippery',  emoji:'✨' },
-  sparkling: { mult:4, label:'Sparkling', emoji:'🌟' },
-  zombie:    { mult:6, label:'Zombie',    emoji:'🧟' },
+  wet:       { mult:2,  label:'Wet',       emoji:'💧' },
+  slippery:  { mult:2,  label:'Slippery',  emoji:'✨' },
+  frozen:    { mult:3,  label:'Frozen',    emoji:'🧊' },
+  sparkling: { mult:4,  label:'Sparkling', emoji:'💫' },
+  rainbow:   { mult:5,  label:'Rainbow',   emoji:'🌈' },
+  zombie:    { mult:6,  label:'Zombie',    emoji:'🧟' },
+  golden:    { mult:10, label:'Golden',    emoji:'🌟' },
 };
 // ---- Weather / trait events ----
 const EVENT_CHECK_MS = 90*1000;   // how often the game rolls for a new event
 const EVENTS = {
-  rain:   { name:'Rain',   emoji:'🌧️', startChance:0.25, dur:60000, trait:'wet',    traitChance:0.50 },
-  zombie: { name:'Zombie', emoji:'🧟', startChance:0.30, dur:45000, trait:'zombie', traitChance:0.30 },
+  rain:    { name:'Rain',        emoji:'🌧️', startChance:0.25, dur:60000, trait:'wet',     traitChance:0.50 },
+  zombie:  { name:'Zombie',      emoji:'🧟', startChance:0.25, dur:45000, trait:'zombie',  traitChance:0.30 },
+  snow:    { name:'Snow',        emoji:'❄️', startChance:0.18, dur:60000, trait:'frozen',  traitChance:0.50 },
+  rainbow: { name:'Rainbow',     emoji:'🌈', startChance:0.06, dur:30000, trait:'rainbow', traitChance:0.40 },
+  golden:  { name:'Golden Hour', emoji:'🌟', startChance:0.03, dur:25000, trait:'golden',  traitChance:0.30 },
 };
 
 // ---- Gear Shop: tools & sprinklers (restock with these chances) ----
@@ -359,7 +371,7 @@ const GEAR = [
 ];
 const GEAR_MAP = Object.fromEntries(GEAR.map(g=>[g.id,g]));
 const SEED_MAP = Object.fromEntries(SEEDS.map(s=>[s.id,s]));
-const RARITY_ORDER = {common:0,rare:1,epic:2,legendary:3,mythic:4,exclusive:5};
+const RARITY_ORDER = {common:0,rare:1,epic:2,legendary:3,mythic:4,exclusive:5,supermythic:6};
 
 const AVATARS = ['🧑‍🌾','👩‍🌾','👨‍🌾','🧙','🤠','🧝','👷','🐰','🦊','🐻'];
 const NAME_COLORS = ['#5be08a','#4aa3ff','#ff9f38','#ff4d7d','#b56cff','#ffd54a','#ff6b6b','#57e0d0'];
@@ -703,7 +715,7 @@ function rollStock(){
   const shop={};
   for(const s of SEEDS){
     if(Math.random()<s.stockChance){
-      const base={common:12,rare:6,epic:3,legendary:2,mythic:1}[s.rarity];
+      const base={common:12,rare:6,epic:3,legendary:2,mythic:1,supermythic:1}[s.rarity]||1;
       shop[s.id]=1+Math.floor(Math.random()*base);
     }
   }
@@ -743,11 +755,11 @@ function buy(id){
   log(`Bought a <b>${s.name}</b> seed for ${s.cost} 🪙`);
   renderShop(); renderHUD(); renderHotbar();
 }
-const RESTOCK_COST = 5;   // coins to force a restock
+const RESTOCK_COST = 100000;   // coins to force a restock
 function forceRestock(){
-  if(state.coins < RESTOCK_COST){ toast(`Need ${RESTOCK_COST} coins to restock.`); return; }
+  if(state.coins < RESTOCK_COST){ toast(`Need ${RESTOCK_COST.toLocaleString()} coins to restock.`); return; }
   state.coins-=RESTOCK_COST; rollStock();
-  log(`Paid ${RESTOCK_COST} 🪙 to restock the Seed Shop.`);
+  log(`Paid ${RESTOCK_COST.toLocaleString()} 🪙 to restock the Seed Shop.`);
   renderShop(); renderHUD();
 }
 // A crop key is either "id" or "id*mult" (slippery bonus). Parse it.
@@ -878,7 +890,7 @@ function renderShop(){
   SEEDS.filter(s=>!s.leafCost).sort((a,b)=>RARITY_ORDER[a.rarity]-RARITY_ORDER[b.rarity]).forEach(s=>{
     const inStock=state.shop[s.id]>0;
     const pct=s.stockChance*100;
-    const chance = pct>=1?pct.toFixed(0)+'%':pct.toFixed(1)+'%';
+    const chance = pct>=1?pct.toFixed(0)+'%':pct>=0.1?pct.toFixed(1)+'%':pct.toFixed(2)+'%';
     const d=document.createElement('div');
     d.className='row'+(inStock?'':' out');
     d.innerHTML=`<div class="ico">${s.emoji}</div>
@@ -1008,9 +1020,11 @@ function draw(){
 }
 
 // Rain streaks / zombie tint over the whole screen during an event.
-let rainDrops=null;
+let rainDrops=null, lastWeatherType=null;
 function drawWeather(){
-  const ev=activeEvent(); if(!ev) return;
+  const ev=activeEvent();
+  if(!ev){ lastWeatherType=null; rainDrops=null; return; }
+  if(ev.type!==lastWeatherType){ lastWeatherType=ev.type; rainDrops=null; }
   if(ev.type==='rain'){
     if(!rainDrops){ rainDrops=[]; for(let i=0;i<90;i++) rainDrops.push({x:Math.random()*VW, y:Math.random()*VH, s:6+Math.random()*7}); }
     ctx.fillStyle='rgba(40,80,140,.10)'; ctx.fillRect(0,0,VW,VH);
@@ -1025,6 +1039,21 @@ function drawWeather(){
     ctx.globalAlpha=.5;
     ctx.fillText('🧟', VW*0.5+Math.sin(t)*VW*0.35, VH*0.2);
     ctx.fillText('🧟', VW*0.5+Math.cos(t*0.8)*VW*0.4, VH*0.8);
+    ctx.globalAlpha=1;
+  } else if(ev.type==='snow'){
+    if(!rainDrops){ rainDrops=[]; for(let i=0;i<80;i++) rainDrops.push({x:Math.random()*VW, y:Math.random()*VH, s:1+Math.random()*2, r:2+Math.random()*2}); }
+    ctx.fillStyle='rgba(200,225,255,.12)'; ctx.fillRect(0,0,VW,VH);
+    ctx.fillStyle='rgba(255,255,255,.9)';
+    for(const d of rainDrops){ ctx.beginPath(); ctx.arc(d.x,d.y,d.r,0,Math.PI*2); ctx.fill(); d.y+=d.s; d.x+=Math.sin(d.y/40); if(d.y>VH){d.y=-6;d.x=Math.random()*VW;} }
+  } else if(ev.type==='rainbow'){
+    const g=ctx.createLinearGradient(0,0,VW,0);
+    ['#ff4d7d','#ffab38','#ffe94a','#5be08a','#4aa3ff','#b56cff'].forEach((c,i,a)=>g.addColorStop(i/(a.length-1),c));
+    ctx.globalAlpha=.14; ctx.fillStyle=g; ctx.fillRect(0,0,VW,VH); ctx.globalAlpha=1;
+  } else if(ev.type==='golden'){
+    ctx.fillStyle='rgba(255,213,74,.16)'; ctx.fillRect(0,0,VW,VH);
+    ctx.font='26px serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.globalAlpha=.6;
+    const t=now()/500;
+    for(let i=0;i<6;i++){ ctx.fillText('✨', ((i*211+ (t*40))%VW), (i*137)%VH); }
     ctx.globalAlpha=1;
   }
 }
