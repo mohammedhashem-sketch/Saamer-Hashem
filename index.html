@@ -52,6 +52,7 @@
   .chip.cur{color:#bfe6c8}
   .chip.spr{color:#7fd0ff;border-color:#4a7fa8}
   .chip.ev{color:#ffe9a8;border-color:var(--gold)}
+  .chip.summer{color:#ffd27f;border-color:#c78a2f}
 
   .histlist{max-height:52vh;overflow:auto;display:flex;flex-direction:column;gap:6px}
   .hitem{display:flex;justify-content:space-between;gap:10px;padding:8px 10px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;font-size:13.5px;line-height:1.4}
@@ -176,6 +177,7 @@
     <div class="chip">🌾 <span id="hudCrops">0</span> crops</div>
     <div class="chip spr" id="hudSpr" style="display:none"></div>
     <div class="chip ev" id="hudEvent" style="display:none"></div>
+    <div class="chip summer" id="hudSummer" style="display:none"></div>
   </div>
 </div>
 
@@ -239,6 +241,22 @@
     <div id="marketList"></div>
     <div class="foot"><button class="btn sell" id="sellAll" style="flex:1">💰 Sell Everything</button></div>
     <p class="tiny">Progress saves automatically · <a id="resetBtn">reset game</a></p>
+  </div>
+</div>
+
+<!-- Summer stand (fishing + summer shop) -->
+<div class="overlay" id="summerOverlay">
+  <div class="modal">
+    <span class="x" data-close="summerOverlay">✕</span>
+    <h2>🏖️ Summer Stand</h2>
+    <p class="sub">Go fishing to catch seeds and 🏖️ Summer Coins, then spend them in the summer shop! The stand leaves when the timer runs out.</p>
+    <div class="disclaimer" style="display:flex;justify-content:space-between;align-items:center">
+      <span>🏖️ <b id="summerCoins">0</b> Summer Coins</span>
+      <span>⏳ Leaves in <b id="summerLeft">--</b></span>
+    </div>
+    <button class="primary" id="fishBtn" style="background:#2f8ac7">🎣 Go Fishing!</button>
+    <div class="sectlabel" style="margin-top:16px">Summer Shop — spend 🏖️</div>
+    <div id="summerShop"></div>
   </div>
 </div>
 
@@ -332,6 +350,14 @@ const SEEDS = [
   { id:'galaxy',    name:'Galaxy Flower', emoji:'🌌', rarity:'supermythic', cost:1500000,  grow:7200, sell:1000000, stockChance:0.0001, cap:3 },
   { id:'diamond',   name:'Diamond Rose',  emoji:'💎', rarity:'supermythic', cost:3000000,  grow:7200, sell:2000000, stockChance:0.0001, cap:2 },
   { id:'unicorn',   name:'Unicorn Bloom', emoji:'🦄', rarity:'supermythic', cost:6000000,  grow:7200, sell:4000000, stockChance:0.0001, cap:2 },
+  // 🏖️ Summer seeds — only from the summer stand (fishing / summer shop), never in the normal shop
+  { id:'pineapple',   name:'Pineapple',       emoji:'🍍', rarity:'common',     cost:0, grow:300,  sell:600,    stockChance:0, cap:4 },
+  { id:'orange',      name:'Orange',          emoji:'🍊', rarity:'rare',       cost:0, grow:600,  sell:1500,   stockChance:0, cap:5 },
+  { id:'squash',      name:'Squash',          emoji:'🍈', rarity:'epic',       cost:0, grow:1200, sell:4000,   stockChance:0, cap:5 },
+  { id:'pitcher',     name:'Pitcher Plant',   emoji:'🪴', rarity:'legendary',  cost:0, grow:2400, sell:12000,  stockChance:0, cap:4 },
+  { id:'elephantear', name:'Elephant Ear',    emoji:'🐘', rarity:'mythic',     cost:0, grow:3600, sell:40000,  stockChance:0, cap:3 },
+  { id:'sunlight',    name:'Sun Light Fruit', emoji:'🌞', rarity:'supermythic',cost:0, grow:5400, sell:800000, stockChance:0, cap:3 },
+  { id:'sunboom',     name:'Sun Boom',        emoji:'🌻', rarity:'exclusive',  cost:0, grow:1800, sell:60000,  stockChance:0, cap:5 },
 ];
 const REGROW_MS = 5*60*1000;   // each harvested fruit regrows in 5 minutes
 
@@ -383,6 +409,30 @@ const GEAR_MAP = Object.fromEntries(GEAR.map(g=>[g.id,g]));
 const SEED_MAP = Object.fromEntries(SEEDS.map(s=>[s.id,s]));
 const RARITY_ORDER = {common:0,rare:1,epic:2,legendary:3,mythic:4,exclusive:5,supermythic:6};
 
+// ---- Summer event (fishing) ----
+const SUMMER_CYCLE = 5*60*1000;    // a summer event starts every 5 minutes
+const SUMMER_DUR   = 150*1000;     // the stand stays for 2.5 minutes, then leaves
+// Fishing loot table (weighted). kind: coins | pack | seed
+const FISH_LOOT = [
+  { w:30,  kind:'coins', amt:500  },
+  { w:24,  kind:'pack'            },
+  { w:15,  kind:'coins', amt:1000 },
+  { w:12,  kind:'seed',  id:'pineapple' },
+  { w:8,   kind:'seed',  id:'orange'    },
+  { w:6,   kind:'coins', amt:2500 },
+  { w:5,   kind:'seed',  id:'squash'    },
+  { w:3,   kind:'seed',  id:'pitcher'   },
+  { w:1.5, kind:'seed',  id:'elephantear' },
+  { w:0.5, kind:'seed',  id:'sunlight'  },
+];
+// Summer shop — spend 🏖️ summer coins
+const SUMMER_SHOP = [
+  { id:'sunboom',  cost:2000, kind:'seed',     name:'Sun Boom seed',       emoji:'🌻', desc:'Summer exclusive plant · sells 60,000 🪙' },
+  { id:'sunlight', cost:6000, kind:'seed',     name:'Sun Light Fruit seed',emoji:'🌞', desc:'Super Mythic · sells 800,000 🪙' },
+  { id:'wcan',     cost:800,  kind:'watercan', name:'+10 Watering Can uses',emoji:'💧', desc:'Refill your watering can' },
+  { id:'pack',     cost:400,  kind:'pack',     name:'Seed Pack',           emoji:'🎁', desc:'1 random seed (seed-shop odds)' },
+];
+
 const AVATARS = ['🧑‍🌾','👩‍🌾','👨‍🌾','🧙','🤠','🧝','👷','🐰','🦊','🐻'];
 const NAME_COLORS = ['#5be08a','#4aa3ff','#ff9f38','#ff4d7d','#b56cff','#ffd54a','#ff6b6b','#57e0d0'];
 
@@ -401,6 +451,8 @@ const BUILDINGS = [
   const x=b.col*TS, y=b.row*TS, w=b.w*TS, h=b.h*TS;
   return {...b, x,y,w,h, door:{x:x+w/2, y:y+h+TS*0.55}};
 });
+// The summer stand (only present during a summer event)
+const SUMMER_STAND = (()=>{ const col=22.5,row=9.5,w=3,h=2; const x=col*TS,y=row*TS,pw=w*TS,ph=h*TS; return {x,y,w:pw,h:ph, door:{x:x+pw/2, y:y+ph+TS*0.5}}; })();
 
 // Garden plots (fixed positions)
 const PLOTS = [];
@@ -448,6 +500,9 @@ let state = load() || {
   sprinkler:null,     // {tier, mult, until}  active garden sprinkler
   event:null,         // {type, until}  active weather event
   nextEventCheck:0,   // when to next roll for an event
+  summerCoins:0,      // 🏖️ currency from the summer event
+  summerUntil:0,      // when the current summer stand leaves (0 = no event)
+  nextSummer:0,       // when the next summer event starts
   xp:0,
 };
 // migrate plot positions + shape onto saved plot data
@@ -603,6 +658,10 @@ function nearestInteractable(){
       if(d<52 && d<bestD){ bestD=d; best={type:'friendplot', friend:fi}; }
     });
   });
+  if(summerActive()){
+    const d=Math.hypot(p.x-SUMMER_STAND.door.x, p.y-SUMMER_STAND.door.y);
+    if(d<75 && d<bestD){ bestD=d; best={type:'summer'}; }
+  }
   return best;
 }
 function tryInteract(){
@@ -613,6 +672,7 @@ function tryInteract(){
   if(it.type==='seed'){ openSeedShop(); }
   else if(it.type==='market'){ openMarket(); }
   else if(it.type==='gear'){ openGearShop(); }
+  else if(it.type==='summer'){ openSummer(); }
   else if(it.type==='plot'){ handlePlot(it.index); }
   else if(it.type==='friendplot'){ const f=state.friends[it.friend]; toast(`🔒 This is ${f.name}'s garden — look, but don't touch!`); }
 }
@@ -717,6 +777,59 @@ function rollTrait(){
   const sp=sprinklerActive();
   if(sp && sp.mult>1){ const tr = sp.tier==='strong'?'sparkling':'slippery'; if(TRAITS[tr].mult>bestMult){ best=tr; bestMult=TRAITS[tr].mult; } }
   return best;
+}
+
+// ---- Summer event (fishing + summer shop) ----
+function summerActive(){ return now() < state.summerUntil; }
+function maybeSummer(){
+  if(state.summerUntil && now()>=state.summerUntil){        // stand leaves
+    state.summerUntil=0;
+    log('🏖️ The summer stand packed up and left.');
+    if(document.getElementById('summerOverlay').classList.contains('show')) document.getElementById('summerOverlay').classList.remove('show');
+  }
+  if(!summerActive() && now()>=state.nextSummer){           // new summer event
+    state.summerUntil = now()+SUMMER_DUR;
+    state.nextSummer  = now()+SUMMER_CYCLE;
+    log('🏖️ A <b>Summer Splash</b> started! Visit the beach stand to go fishing! 🎣');
+    notify('🏖️ <b>Summer Splash!</b> Go fishing at the beach stand! 🎣');
+  }
+}
+// A random seed with the same odds as the normal seed shop.
+function packSeed(){
+  const pool=SEEDS.filter(s=>s.stockChance>0);
+  let total=0; for(const s of pool) total+=s.stockChance;
+  let r=Math.random()*total;
+  for(const s of pool){ r-=s.stockChance; if(r<=0) return s.id; }
+  return pool[0].id;
+}
+function fish(){
+  if(!summerActive()){ toast('The summer stand is closed.'); return; }
+  let total=0; for(const it of FISH_LOOT) total+=it.w;
+  let r=Math.random()*total, pick=FISH_LOOT[0];
+  for(const it of FISH_LOOT){ r-=it.w; if(r<=0){ pick=it; break; } }
+  if(pick.kind==='coins'){
+    state.summerCoins=(state.summerCoins||0)+pick.amt;
+    toast(`🎣 Caught ${pick.amt} 🏖️ Summer Coins!`);
+    log(`🎣 Fished up <b>${pick.amt} Summer Coins</b>`);
+  } else {
+    const id = pick.kind==='pack' ? packSeed() : pick.id;
+    const s=SEED_MAP[id];
+    state.seedInv[id]=(state.seedInv[id]||0)+1;
+    if(!state.selectedSeed) state.selectedSeed=id;
+    const special = RARITY_ORDER[s.rarity]>=3;
+    toast(`${special?'🌟 ':'🎣 '}Caught ${s.emoji} ${s.name}${pick.kind==='pack'?' (seed pack)':''}!`);
+    log(`🎣 Fished up a <b>${s.emoji} ${s.name}</b>${pick.kind==='pack'?' from a seed pack':''}`);
+    if(special) notify(`🌟 Rare catch: <b>${s.emoji} ${s.name}</b>!`);
+  }
+  renderSummer(); renderHUD(); renderHotbar();
+}
+function buySummer(i){
+  const it=SUMMER_SHOP[i]; if(!it) return;
+  if((state.summerCoins||0) < it.cost){ toast('Not enough Summer Coins — go fish for more! 🎣'); return; }
+  state.summerCoins-=it.cost;
+  if(it.kind==='watercan'){ state.wateringUses+=WATER_USES; toast(`Bought ${WATER_USES} watering-can uses!`); }
+  else { const id = it.kind==='pack'?packSeed():it.id; const s=SEED_MAP[id]; state.seedInv[id]=(state.seedInv[id]||0)+1; if(!state.selectedSeed) state.selectedSeed=id; toast(`Bought ${s.emoji} ${s.name}!`); log(`Bought <b>${s.name}</b> for ${it.cost} 🏖️`); }
+  renderSummer(); renderHUD(); renderHotbar();
 }
 
 // ---- Shop restock ----
@@ -851,6 +964,21 @@ function renderGear(){
 function openSeedShop(){ renderShop(); show('seedOverlay'); }
 function openMarket(){ renderMarket(); show('marketOverlay'); }
 function openGearShop(){ renderGear(); show('gearOverlay'); }
+function openSummer(){ renderSummer(); show('summerOverlay'); }
+function renderSummer(){
+  document.getElementById('summerCoins').textContent = (state.summerCoins||0).toLocaleString();
+  document.getElementById('summerLeft').textContent = summerActive()? fmtTime((state.summerUntil-now())/1000) : 'closed';
+  const shop=document.getElementById('summerShop'); shop.innerHTML='';
+  SUMMER_SHOP.forEach((it,i)=>{
+    const afford=(state.summerCoins||0)>=it.cost;
+    const d=document.createElement('div'); d.className='row';
+    d.innerHTML=`<div class="ico">${it.emoji}</div>
+      <div class="info"><div class="nm">${it.name}</div><div class="sub2">${it.desc}</div></div>
+      <button class="btn" style="background:#c78a2f" ${afford?'':'disabled'}>🏖️ ${it.cost}</button>`;
+    d.querySelector('.btn').onclick=()=>buySummer(i);
+    shop.appendChild(d);
+  });
+}
 
 // ---- Friends' gardens (view-only) ----
 let friendAvatarPick = AVATARS[1];
@@ -896,7 +1024,7 @@ document.querySelectorAll('[data-close]').forEach(x=>x.onclick=()=>document.getE
 
 function renderShop(){
   const el=document.getElementById('shopList'); el.innerHTML='';
-  SEEDS.filter(s=>!s.leafCost).sort((a,b)=>RARITY_ORDER[a.rarity]-RARITY_ORDER[b.rarity]).forEach(s=>{
+  SEEDS.filter(s=>s.stockChance>0).sort((a,b)=>RARITY_ORDER[a.rarity]-RARITY_ORDER[b.rarity]).forEach(s=>{
     const inStock=state.shop[s.id]>0;
     const pct=s.stockChance*100;
     const chance = pct>=1?pct.toFixed(0)+'%':pct>=0.1?pct.toFixed(1)+'%':pct.toFixed(2)+'%';
@@ -1010,6 +1138,9 @@ function draw(){
   // friends' gardens (view-only)
   state.friends.forEach((f,fi)=>drawFriendGarden(f,fi, near&&near.type==='friendplot'&&near.friend===fi));
 
+  // summer stand (only during a summer event)
+  if(summerActive()) drawSummerStand(near&&near.type==='summer');
+
   // trees
   TREES.forEach(drawTree);
 
@@ -1111,6 +1242,30 @@ function drawPlot(pl,i,active){
     }
   }
 }
+function drawSummerStand(active){
+  const b=SUMMER_STAND, cx=b.x+b.w/2;
+  // shadow + sandy counter
+  ctx.fillStyle='rgba(0,0,0,.2)'; roundRectRaw(b.x+5,b.y+9,b.w,b.h,12); ctx.fill();
+  roundRect(b.x,b.y,b.w,b.h,12,'#e8c887');           // sandy stand
+  roundRect(b.x,b.y+b.h*0.5,b.w,b.h*0.5,10,'#c99a55'); // counter front
+  // striped umbrella
+  const ux=cx, uy=b.y-6;
+  for(let i=0;i<6;i++){ ctx.fillStyle=i%2?'#ff5d5d':'#fff'; ctx.beginPath(); ctx.moveTo(ux,uy-46); ctx.arc(ux,uy,46, Math.PI+i*Math.PI/6, Math.PI+(i+1)*Math.PI/6); ctx.closePath(); ctx.fill(); }
+  ctx.strokeStyle='#8a6a3a'; ctx.lineWidth=4; ctx.beginPath(); ctx.moveTo(ux,uy); ctx.lineTo(ux,b.y+b.h); ctx.stroke();
+  // sign emoji
+  ctx.font='30px serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('🎣', cx, b.y+b.h*0.72);
+  // TIMER 1: label banner on top
+  const left=fmtTime((state.summerUntil-now())/1000);
+  ctx.font='700 13px Segoe UI, sans-serif';
+  const l1=`🏖️ Summer`; const tw=ctx.measureText(l1).width;
+  roundRectRaw(cx-tw/2-9, b.y-92, tw+18, 22, 8); ctx.fillStyle=active?'#c78a2f':'rgba(15,30,19,.92)'; ctx.fill();
+  ctx.fillStyle='#fff'; ctx.fillText(l1, cx, b.y-81);
+  // TIMER 2 (deletion countdown): floating below the top banner
+  const l2=`⏳ Leaves in ${left}`; ctx.font='700 12px Segoe UI, sans-serif';
+  const tw2=ctx.measureText(l2).width;
+  roundRectRaw(cx-tw2/2-8, b.y-68, tw2+16, 20, 7); ctx.fillStyle='rgba(199,138,47,.95)'; ctx.fill();
+  ctx.fillStyle='#2a1a00'; ctx.fillText(l2, cx, b.y-58);
+}
 function drawFriendGarden(f, fi, active){
   const plots=friendPlots(fi);
   // fenced dirt patch behind the plots
@@ -1189,6 +1344,7 @@ function updatePrompt(near){
   if(near.type==='seed') txt=`<span class="key">E</span> Open <b>Seed Shop</b>`;
   else if(near.type==='market') txt=`<span class="key">E</span> Open <b>Market</b>`;
   else if(near.type==='gear') txt=`<span class="key">E</span> Open <b>Gear Shop</b>`;
+  else if(near.type==='summer') txt=`<span class="key">E</span> 🎣 <b>Summer Stand</b> — fish &amp; shop!`;
   else if(near.type==='friendplot'){ const f=state.friends[near.friend]; txt=`🔒 ${f.avatar} <b>${f.name}'s garden</b> — view only`; }
   else if(near.type==='plot'){
     const pl=state.plots[near.index];
@@ -1266,6 +1422,9 @@ function importCode(code){
   if(d.tool!=='shovel' && d.tool!=='can') d.tool='none';
   if(typeof d.wateringUses!=='number') d.wateringUses=0;
   if(!Array.isArray(d.friends)) d.friends=[];
+  if(typeof d.summerCoins!=='number') d.summerCoins=0;
+  if(typeof d.summerUntil!=='number') d.summerUntil=0;
+  if(!d.nextSummer) d.nextSummer=now()+60*1000;
   logs = Array.isArray(d.logs)? d.logs : [];
   state = d;
   save(); renderHUD(); renderHotbar();
@@ -1311,6 +1470,7 @@ document.getElementById('loadSave').onclick=()=>{
 };
 document.getElementById('friendsBtn').onclick=()=>{ if(state.setupDone) openFriends(); };
 document.getElementById('addFriendBtn').onclick=addFriend;
+document.getElementById('fishBtn').onclick=fish;
 document.getElementById('notif').onclick=()=>{ document.getElementById('notif').classList.remove('show'); if(state.setupDone) openSeedShop(); };
 document.getElementById('clearHist').onclick=()=>{ if(confirm('Clear your history? (progress is kept)')){ logs=[]; save(); renderHistory(); } };
 document.getElementById('resetBtn').onclick=()=>{ if(confirm('Reset all progress?')){ localStorage.removeItem('sproutWorld'); location.reload(); } };
@@ -1323,6 +1483,10 @@ if(typeof state.wateringUses!=='number') state.wateringUses=0;
 if(!Array.isArray(state.friends)) state.friends=[];
 if(!state.nextEventCheck) state.nextEventCheck = now()+90*1000;  // first event soon, then every 10 min
 if(state.event && now()>=state.event.until) state.event=null;
+if(typeof state.summerCoins!=='number') state.summerCoins=0;
+if(typeof state.summerUntil!=='number') state.summerUntil=0;
+if(!state.nextSummer) state.nextSummer = now()+60*1000;  // first summer ~1 min in, then every 5 min
+if(state.summerUntil && now()>=state.summerUntil) state.summerUntil=0;
 buildSetup();
 if(!state.setupDone) show('setupOverlay');
 renderHUD(); renderHotbar();
@@ -1334,6 +1498,7 @@ let sprWasActive=false;
 setInterval(()=>{
   maybeRestock();
   maybeEvent();
+  maybeSummer();
   const rem=Math.max(0,Math.ceil((RESTOCK_MS-(now()-state.lastRestock))/1000));
   const mm=Math.floor(rem/60), ss=String(rem%60).padStart(2,'0');
   const el=document.getElementById('restockIn'); if(el) el.textContent=`${mm}:${ss}`;
@@ -1345,7 +1510,13 @@ setInterval(()=>{
   const ev=activeEvent(); const evEl=document.getElementById('hudEvent');
   if(ev){ const e=EVENTS[ev.type]; evEl.style.display='flex'; evEl.textContent=`${e.emoji} ${e.name} ${fmtTime((ev.until-now())/1000)}`; }
   else evEl.style.display='none';
+  // live summer HUD chip (timer on top): shows event timer, or countdown to next
+  const suEl=document.getElementById('hudSummer');
+  if(summerActive()){ suEl.style.display='flex'; suEl.textContent=`🏖️ Summer ${fmtTime((state.summerUntil-now())/1000)}`; }
+  else if(state.nextSummer){ suEl.style.display='flex'; suEl.textContent=`🏖️ next ${fmtTime((state.nextSummer-now())/1000)}`; }
+  else suEl.style.display='none';
   if(document.getElementById('gearOverlay').classList.contains('show')) renderGear();
+  if(document.getElementById('summerOverlay').classList.contains('show')) renderSummer();
 },400);
 
 // ---- Main loop ----
