@@ -337,13 +337,13 @@ const REGROW_MS = 5*60*1000;   // each harvested fruit regrows in 5 minutes
 
 // ---- Crop traits (mutations) — a harvested fruit can gain one, boosting value ----
 const TRAITS = {
-  wet:       { mult:100, label:'Wet',      emoji:'💧' },
+  wet:       { mult:2,  label:'Wet',       emoji:'💧' },
   slippery:  { mult:2,  label:'Slippery',  emoji:'✨' },
   sunkissed: { mult:2,  label:'Sunkissed', emoji:'☀️' },
   frozen:    { mult:3,  label:'Frozen',    emoji:'🧊' },
   sparkling: { mult:4,  label:'Sparkling', emoji:'💫' },
   fiery:     { mult:4,  label:'Fiery',     emoji:'🔥' },
-  rainbow:   { mult:5,  label:'Rainbow',   emoji:'🌈' },
+  rainbow:   { mult:100, label:'Rainbow',  emoji:'🌈' },
   shocked:   { mult:6,  label:'Shocked',   emoji:'⚡' },
   zombie:    { mult:6,  label:'Zombie',    emoji:'🧟' },
   windy:     { mult:7,  label:'Twisted',   emoji:'🌪️' },
@@ -353,14 +353,14 @@ const TRAITS = {
 // ---- Weather / trait events (one is guaranteed every EVENT_CHECK_MS) ----
 const EVENT_CHECK_MS = 10*60*1000;   // a trait event happens every 10 minutes
 const EVENTS = {
-  rain:    { name:'Rain',         emoji:'🌧️', weight:0.004, dur:60000, trait:'wet',       traitChance:0.50 },
+  rain:    { name:'Rain',         emoji:'🌧️', weight:0.20, dur:60000, trait:'wet',       traitChance:0.50 },
   sunny:   { name:'Sunny',        emoji:'☀️', weight:0.16, dur:60000, trait:'sunkissed', traitChance:0.50, tint:'rgba(255,220,120,.14)' },
   snow:    { name:'Snow',         emoji:'❄️', weight:0.15, dur:60000, trait:'frozen',    traitChance:0.50 },
   zombie:  { name:'Zombie',       emoji:'🧟', weight:0.13, dur:45000, trait:'zombie',    traitChance:0.30 },
   heat:    { name:'Heatwave',     emoji:'🔥', weight:0.11, dur:50000, trait:'fiery',     traitChance:0.45, tint:'rgba(255,110,40,.16)' },
   thunder: { name:'Thunderstorm', emoji:'⛈️', weight:0.09, dur:40000, trait:'shocked',   traitChance:0.35, tint:'rgba(40,40,80,.30)' },
   night:   { name:'Night',        emoji:'🌙', weight:0.07, dur:45000, trait:'moonlit',   traitChance:0.30, tint:'rgba(20,20,70,.36)' },
-  rainbow: { name:'Rainbow',      emoji:'🌈', weight:0.05, dur:30000, trait:'rainbow',   traitChance:0.40 },
+  rainbow: { name:'Rainbow',      emoji:'🌈', weight:0.004, dur:30000, trait:'rainbow',   traitChance:0.40 },
   tornado: { name:'Tornado',      emoji:'🌪️', weight:0.03, dur:35000, trait:'windy',     traitChance:0.30, tint:'rgba(130,130,120,.24)' },
   golden:  { name:'Golden Hour',  emoji:'🌟', weight:0.02, dur:25000, trait:'golden',    traitChance:0.30 },
 };
