@@ -257,6 +257,7 @@
     <button class="primary" id="fishBtn" style="background:#2f8ac7">🎣 Go Fishing!</button>
     <div class="sectlabel" style="margin-top:16px">Summer Shop — spend 🏖️</div>
     <div id="summerShop"></div>
+    <div id="packOdds" class="histlist" style="display:none;margin-top:8px"></div>
   </div>
 </div>
 
@@ -424,12 +425,13 @@ const FISH_LOOT = [
 // Seed-pack odds by rarity (same idea as the seed shop). Sun Boom (exclusive)
 // is NOT in the pack — it's the rarest, shop-only.
 const PACK_W = { common:1, rare:0.3, epic:0.1, legendary:0.01, mythic:0.001, supermythic:0.0001 };
+// The seed pack only contains these summer fruits (weighted by rarity).
+const SUMMER_FRUITS = ['pineapple','orange','squash','pitcher','elephantear','sunlight'];
 // Summer shop — spend 🏖️ summer coins
 const SUMMER_SHOP = [
   { id:'sunboom',  cost:80000, kind:'seed',     name:'Sun Boom seed',       emoji:'🌻', desc:'★ Rarest! Summer exclusive · sells 60,000 🪙' },
-  { id:'sunlight', cost:6000,  kind:'seed',     name:'Sun Light Fruit seed',emoji:'🌞', desc:'Super Mythic · sells 800,000 🪙' },
   { id:'wcan',     cost:800,   kind:'watercan', name:'+10 Watering Can uses',emoji:'💧', desc:'Refill your watering can' },
-  { id:'pack',     cost:400,   kind:'pack',     name:'Seed Pack',           emoji:'🎁', desc:'1 random seed (rarity odds, incl. summer fruits)' },
+  { id:'pack',     cost:400,   kind:'pack',     name:'Seed Pack',           emoji:'🎁', desc:'1 random summer fruit (see odds)' },
 ];
 
 const AVATARS = ['🧑‍🌾','👩‍🌾','👨‍🌾','🧙','🤠','🧝','👷','🐰','🦊','🐻'];
@@ -806,14 +808,17 @@ function maybeSummer(){
     }
   }
 }
-// A random seed with rarity odds like the seed shop — includes summer fruits.
-// Sun Boom (exclusive) is excluded — it's shop-only.
+// A random SUMMER FRUIT, weighted by rarity (normal seeds are not in the pack).
 function packSeed(){
-  const pool=SEEDS.filter(s=>s.rarity!=='exclusive');
-  let total=0; for(const s of pool) total+=(PACK_W[s.rarity]||0.0001);
+  let total=0; for(const id of SUMMER_FRUITS) total+=PACK_W[SEED_MAP[id].rarity];
   let r=Math.random()*total;
-  for(const s of pool){ r-=(PACK_W[s.rarity]||0.0001); if(r<=0) return s.id; }
-  return pool[0].id;
+  for(const id of SUMMER_FRUITS){ r-=PACK_W[SEED_MAP[id].rarity]; if(r<=0) return id; }
+  return SUMMER_FRUITS[0];
+}
+// Seed-pack odds (percent per fruit) for the "see odds" popup.
+function packOdds(){
+  let total=0; for(const id of SUMMER_FRUITS) total+=PACK_W[SEED_MAP[id].rarity];
+  return SUMMER_FRUITS.map(id=>{ const s=SEED_MAP[id], p=100*PACK_W[s.rarity]/total; return { s, pct: p>=1?p.toFixed(1):p>=0.01?p.toFixed(2):p.toFixed(4) }; });
 }
 function fish(){
   if(!fishingActive()){ toast('The fish aren’t biting — wait for the next fishing event! 🎣'); return; }
@@ -993,12 +998,22 @@ function renderSummer(){
   SUMMER_SHOP.forEach((it,i)=>{
     const afford=(state.summerCoins||0)>=it.cost;
     const d=document.createElement('div'); d.className='row';
+    const oddsBtn = it.kind==='pack' ? `<button class="btn oddsBtn" style="background:#3a4a40;padding:8px 10px">📊 odds</button>` : '';
     d.innerHTML=`<div class="ico">${it.emoji}</div>
       <div class="info"><div class="nm">${it.name}</div><div class="sub2">${it.desc}</div></div>
-      <button class="btn" style="background:#c78a2f" ${afford?'':'disabled'}>🏖️ ${it.cost}</button>`;
-    d.querySelector('.btn').onclick=()=>buySummer(i);
+      ${oddsBtn}
+      <button class="btn buyBtn" style="background:#c78a2f" ${afford?'':'disabled'}>🏖️ ${it.cost}</button>`;
+    d.querySelector('.buyBtn').onclick=()=>buySummer(i);
+    if(it.kind==='pack') d.querySelector('.oddsBtn').onclick=togglePackOdds;
     shop.appendChild(d);
   });
+}
+function togglePackOdds(){
+  const el=document.getElementById('packOdds');
+  if(el.style.display!=='none'){ el.style.display='none'; return; }
+  el.innerHTML = `<div class="hitem"><b>🎁 Seed Pack odds</b><span class="when">1 random summer fruit</span></div>` +
+    packOdds().map(o=>`<div class="hitem"><span>${o.s.emoji} ${o.s.name} <span class="rar ${o.s.rarity}">${o.s.rarity}</span></span><span class="when">${o.pct}%</span></div>`).join('');
+  el.style.display='flex';
 }
 
 // ---- Friends' gardens (view-only) ----
