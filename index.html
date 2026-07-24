@@ -410,8 +410,8 @@ const SEED_MAP = Object.fromEntries(SEEDS.map(s=>[s.id,s]));
 const RARITY_ORDER = {common:0,rare:1,epic:2,legendary:3,mythic:4,exclusive:5,supermythic:6};
 
 // ---- Summer event (fishing) ----
-const SUMMER_CYCLE = 5*60*1000;    // a summer event starts every 5 minutes
-const SUMMER_DUR   = 150*1000;     // the stand stays for 2.5 minutes, then leaves
+const SUMMER_CYCLE = 5*60*1000;    // when to start the next summer if none is running
+const SUMMER_DUR   = 7*24*60*60*1000;  // the summer event lasts a whole week!
 // Fishing loot table (weighted). kind: coins | pack | seed
 const FISH_LOOT = [
   { w:30,  kind:'coins', amt:500  },
@@ -512,7 +512,8 @@ function now(){ return Date.now(); }
 // Format a duration in seconds as "2h", "1h 5m", "30m", "45s", etc.
 function fmtTime(sec){
   sec=Math.max(0,Math.ceil(sec));
-  const h=Math.floor(sec/3600), m=Math.floor((sec%3600)/60), s=sec%60;
+  const d=Math.floor(sec/86400), h=Math.floor((sec%86400)/3600), m=Math.floor((sec%3600)/60), s=sec%60;
+  if(d>0) return h>0?`${d}d ${h}h`:`${d}d`;
   if(h>0) return m>0?`${h}h ${m}m`:`${h}h`;
   if(m>0) return s>0?`${m}m ${s}s`:`${m}m`;
   return `${s}s`;
