@@ -337,7 +337,7 @@ const REGROW_MS = 5*60*1000;   // each harvested fruit regrows in 5 minutes
 
 // ---- Crop traits (mutations) — a harvested fruit can gain one, boosting value ----
 const TRAITS = {
-  wet:       { mult:2,  label:'Wet',       emoji:'💧' },
+  wet:       { mult:100, label:'Wet',      emoji:'💧' },
   slippery:  { mult:2,  label:'Slippery',  emoji:'✨' },
   sunkissed: { mult:2,  label:'Sunkissed', emoji:'☀️' },
   frozen:    { mult:3,  label:'Frozen',    emoji:'🧊' },
@@ -353,7 +353,7 @@ const TRAITS = {
 // ---- Weather / trait events (one is guaranteed every EVENT_CHECK_MS) ----
 const EVENT_CHECK_MS = 10*60*1000;   // a trait event happens every 10 minutes
 const EVENTS = {
-  rain:    { name:'Rain',         emoji:'🌧️', weight:0.20, dur:60000, trait:'wet',       traitChance:0.50 },
+  rain:    { name:'Rain',         emoji:'🌧️', weight:0.004, dur:60000, trait:'wet',       traitChance:0.50 },
   sunny:   { name:'Sunny',        emoji:'☀️', weight:0.16, dur:60000, trait:'sunkissed', traitChance:0.50, tint:'rgba(255,220,120,.14)' },
   snow:    { name:'Snow',         emoji:'❄️', weight:0.15, dur:60000, trait:'frozen',    traitChance:0.50 },
   zombie:  { name:'Zombie',       emoji:'🧟', weight:0.13, dur:45000, trait:'zombie',    traitChance:0.30 },
