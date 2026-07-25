@@ -719,16 +719,16 @@ function handlePlot(i){
   if(pl.seedId){
     const s=SEED_MAP[pl.seedId];
     if(pl.fruits>0){
-      const trait = rollTrait();               // 💧 wet / 🧟 zombie / ✨ sprinkler trait, or null
-      const t = trait ? TRAITS[trait] : null;
-      const mult = t ? t.mult : 1;
+      const traits = rollTraits();             // a fruit can get several stacking traits
+      let mult=1; for(const t of traits) mult*=TRAITS[t].mult;
       const take = s.oneTime ? pl.fruits : 1;  // commons give everything once, then vanish
-      const key = trait ? s.id+'#'+trait : s.id;
+      const key = traits.length ? s.id+'#'+traits.join('#') : s.id;
       state.cropInv[key]=(state.cropInv[key]||0)+take;
       state.xp += Math.round(s.sell*mult*take/10);
       pl.fruits -= take;
-      const tag = t ? `${t.emoji} ${t.label} ` : '';
-      if(t && trait!=='slippery' && trait!=='sparkling') notify(`${t.emoji} Got a <b>${t.label} ${s.name}</b> — sells ×${mult}!`);
+      const tag = traits.length ? traits.map(t=>TRAITS[t].emoji).join('')+' ' : '';
+      const bigTrait = traits.some(t=>TRAITS[t].mult>=5);
+      if(traits.length>=2 || bigTrait) notify(`${tag}Got a <b>${tag}${s.name}</b> — sells ×${mult}!`);
       if(s.oneTime){
         pl.seedId=null; pl.timers=[]; pl.fruits=0;
         toast(`Harvested ${take}× ${tag}${s.emoji} ${s.name}!`);
@@ -786,14 +786,18 @@ function maybeEvent(){
     notify(`${e.emoji} <b>${e.name}!</b> Harvest now for ${TRAITS[e.trait].emoji} ${TRAITS[e.trait].label} fruit (×${TRAITS[e.trait].mult})!`);
   }
 }
-// Decide the trait of a just-harvested fruit (best of event + sprinkler).
-function rollTrait(){
-  let best=null, bestMult=1;
+// Decide the traits of a just-harvested fruit — a fruit can have SEVERAL,
+// and their multipliers all stack together.
+const BONUS_TRAITS = ['wet','slippery','sunkissed','frozen'];  // modest extra sparkle
+function rollTraits(){
+  const traits=[];
   const ev=activeEvent();
-  if(ev){ const e=EVENTS[ev.type]; if(Math.random()<e.traitChance){ best=e.trait; bestMult=TRAITS[e.trait].mult; } }
+  if(ev){ const e=EVENTS[ev.type]; if(Math.random()<e.traitChance) traits.push(e.trait); }
   const sp=sprinklerActive();
-  if(sp && sp.mult>1){ const tr = sp.tier==='strong'?'sparkling':'slippery'; if(TRAITS[tr].mult>bestMult){ best=tr; bestMult=TRAITS[tr].mult; } }
-  return best;
+  if(sp && sp.mult>1) traits.push(sp.tier==='strong'?'sparkling':'slippery');
+  // small chance of an extra bonus trait so fruits can stack multiple
+  if(Math.random()<0.08) traits.push(BONUS_TRAITS[Math.floor(Math.random()*BONUS_TRAITS.length)]);
+  return [...new Set(traits)];   // no duplicates
 }
 
 // ---- Summer stand (leaves after a week) + fishing events ----
@@ -944,18 +948,22 @@ function expandGarden(){
   log(`Expanded the garden for ${fmtBig(cost)} 🪙 — now ${cap} plots`);
   renderHUD();
 }
-// A crop key is either "id" or "id*mult" (slippery bonus). Parse it.
+// A crop key is "id", "id#trait#trait…" (traits stack), or legacy "id*mult".
 function parseCrop(key){
-  if(key.includes('#')){ const [id,tr]=key.split('#'); return { seed:SEED_MAP[id], trait:tr, mult:(TRAITS[tr]?TRAITS[tr].mult:1) }; }
+  if(key.includes('#')){
+    const parts=key.split('#'); const id=parts[0];
+    const traits=parts.slice(1).filter(t=>TRAITS[t]);
+    let mult=1; for(const t of traits) mult*=TRAITS[t].mult;
+    return { seed:SEED_MAP[id], traits, mult };
+  }
   const [id,m]=key.split('*');  // legacy numeric-multiplier keys from older saves
-  return { seed:SEED_MAP[id], trait:null, mult:m?parseInt(m):1 };
+  return { seed:SEED_MAP[id], traits:[], mult:m?parseInt(m):1 };
 }
 function cropValue(key){ const c=parseCrop(key); return c.seed.sell*c.mult; }
 function cropLabel(key){
   const c=parseCrop(key);
-  const t = c.trait && TRAITS[c.trait];
-  const tag = t ? `${t.emoji} ${t.label} ` : (c.mult>=4?'✨ Super Slippery ':c.mult>1?'✨ Slippery ':'');
-  return tag+c.seed.name;
+  if(c.traits && c.traits.length){ return c.traits.map(t=>TRAITS[t].emoji).join('')+' '+c.seed.name; }
+  return (c.mult>1?'✨ ':'')+c.seed.name;
 }
 function sellCrop(key){
   const n=state.cropInv[key]; if(!n) return;
@@ -1126,10 +1134,11 @@ function renderMarket(){
   if(!keys.length){ el.innerHTML='<div class="empty-note">No crops yet. Plant seeds in the garden, wait for them to ripen, then harvest and come back to sell!</div>'; return; }
   keys.forEach(key=>{
     const c=parseCrop(key), n=state.cropInv[key], each=cropValue(key);
+    const traitTxt = c.traits && c.traits.length ? c.traits.map(t=>TRAITS[t].label).join(' + ')+` (×${c.mult})` : c.seed.rarity;
     const d=document.createElement('div'); d.className='row';
     d.innerHTML=`<div class="ico">${c.seed.emoji}</div>
       <div class="info">
-        <div class="nm">${cropLabel(key)} <span class="rar ${c.mult>1?'exclusive':c.seed.rarity}">${c.trait?TRAITS[c.trait].label:(c.mult>1?'special':c.seed.rarity)}</span></div>
+        <div class="nm">${cropLabel(key)} <span class="rar ${c.traits&&c.traits.length?'exclusive':c.seed.rarity}">${traitTxt}</span></div>
         <div class="sub2">×${n} in basket · ${each} 🪙 each</div>
       </div>
       <button class="btn sell">Sell ${each*n} 🪙</button>`;
