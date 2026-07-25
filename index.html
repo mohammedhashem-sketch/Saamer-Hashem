@@ -53,6 +53,7 @@
   .chip.spr{color:#7fd0ff;border-color:#4a7fa8}
   .chip.ev{color:#ffe9a8;border-color:var(--gold)}
   .chip.summer{color:#ffd27f;border-color:#c78a2f}
+  .chip.expand{color:#9be89b;border-color:#2f7d4a}
 
   .histlist{max-height:52vh;overflow:auto;display:flex;flex-direction:column;gap:6px}
   .hitem{display:flex;justify-content:space-between;gap:10px;padding:8px 10px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;font-size:13.5px;line-height:1.4}
@@ -171,6 +172,7 @@
     <div class="chip click" id="histBtn">📜 History</div>
     <div class="chip click" id="friendsBtn">👥 Friends</div>
     <div class="chip click" id="saveBtn">💾 Save</div>
+    <div class="chip click expand" id="expandBtn">🌱 Expand</div>
   </div>
   <div class="grp">
     <div class="chip coins">🪙 <span id="hudCoins">0</span></div>
@@ -456,12 +458,19 @@ const BUILDINGS = [
 // The summer stand (only present during a summer event)
 const SUMMER_STAND = (()=>{ const col=22.5,row=9.5,w=3,h=2; const x=col*TS,y=row*TS,pw=w*TS,ph=h*TS; return {x,y,w:pw,h:ph, door:{x:x+pw/2, y:y+ph+TS*0.5}}; })();
 
-// Garden plots (fixed positions)
-const PLOTS = [];
-for(let j=0;j<3;j++) for(let i=0;i<4;i++){
-  const col=4+i*2, row=7+j*2;
-  PLOTS.push({ x:col*TS+TS/2, y:row*TS+TS/2, seedId:null, plantedAt:0 });
-}
+// Garden plots — a base 4x3 grid (12) that can be expanded up to PLOT_CELLS.
+const PLOT_CELLS = (()=>{
+  const cell=(c,r)=>({ x:c*TS+TS/2, y:r*TS+TS/2 });
+  const base=[]; for(let j=0;j<3;j++) for(let i=0;i<4;i++) base.push(cell(4+i*2, 7+j*2));
+  const has=new Set(base.map(p=>p.x+','+p.y));
+  const extra=[]; const rows=[7,9,11,5,13], cols=[4,6,8,10,12,14,16,18];
+  for(const r of rows) for(const c of cols){ const p=cell(c,r); if(!has.has(p.x+','+p.y)) extra.push(p); }
+  return base.concat(extra);   // base 12 first, then expansion cells
+})();
+const PLOTS = PLOT_CELLS.slice(0,12);   // legacy name used a few places
+const EXPAND_ADD = 6;                    // plots added per expansion
+function plotCapacity(exp){ return Math.min(PLOT_CELLS.length, 12 + (exp||0)*EXPAND_ADD); }
+function fmtBig(n){ if(n>=1e12) return (n/1e12)+'T'; if(n>=1e9) return (n/1e9)+'B'; if(n>=1e6) return (n/1e6)+'M'; if(n>=1e3) return (n/1e3)+'k'; return ''+n; }
 
 // Decorative + solid trees
 const TREES = [
@@ -492,6 +501,7 @@ let state = load() || {
   seedInv:{},   // seeds to plant
   cropInv:{},   // harvested crops to sell
   plots:PLOTS.map(p=>({seedId:null,fruits:0,timers:[]})),
+  expansions:0, // garden expansions bought
   shop:{},
   gearShop:{},        // gear stock (itemId -> qty)
   lastRestock:Date.now(),
@@ -510,8 +520,9 @@ let state = load() || {
   nextFish:0,         // when the next fishing event starts
   xp:0,
 };
-// migrate plot positions + shape onto saved plot data
-state.plots = PLOTS.map((p,i)=>normalizePlot(p, state.plots[i]));
+// migrate plot positions + shape onto saved plot data (grows with expansions)
+if(typeof state.expansions!=='number') state.expansions=0;
+state.plots = Array.from({length:plotCapacity(state.expansions)}, (_,i)=>normalizePlot(PLOT_CELLS[i], state.plots && state.plots[i]));
 
 function now(){ return Date.now(); }
 // Format a duration in seconds as "2h", "1h 5m", "30m", "45s", etc.
@@ -917,6 +928,22 @@ function forceRestock(){
   log(`Paid ${RESTOCK_COST.toLocaleString()} 🪙 to restock the Seed Shop.`);
   renderShop(); renderHUD();
 }
+// ---- Garden expansion: first 1B coins, then 20B each time ----
+function expandCost(){ return (state.expansions||0)===0 ? 1e9 : 20e9; }
+function gardenMaxed(){ return plotCapacity(state.expansions) >= PLOT_CELLS.length; }
+function expandGarden(){
+  if(!state.setupDone) return;
+  if(gardenMaxed()){ toast('Your garden is already fully expanded! 🌳'); return; }
+  const cost=expandCost();
+  if(state.coins < cost){ toast(`You need ${fmtBig(cost)} coins to expand!`); return; }
+  if(!confirm(`Expand your garden for ${fmtBig(cost)} coins? You'll get ${EXPAND_ADD} more plots.`)) return;
+  state.coins-=cost; state.expansions=(state.expansions||0)+1;
+  const cap=plotCapacity(state.expansions);
+  while(state.plots.length<cap){ const c=PLOT_CELLS[state.plots.length]; state.plots.push({x:c.x,y:c.y,seedId:null,fruits:0,timers:[]}); }
+  toast(`🌱 Garden expanded! +${EXPAND_ADD} plots`);
+  log(`Expanded the garden for ${fmtBig(cost)} 🪙 — now ${cap} plots`);
+  renderHUD();
+}
 // A crop key is either "id" or "id*mult" (slippery bonus). Parse it.
 function parseCrop(key){
   if(key.includes('#')){ const [id,tr]=key.split('#'); return { seed:SEED_MAP[id], trait:tr, mult:(TRAITS[tr]?TRAITS[tr].mult:1) }; }
@@ -1121,6 +1148,7 @@ function renderHUD(){
   document.getElementById('hudCoins').textContent = Math.floor(state.coins).toLocaleString();
   document.getElementById('hudLevel').textContent = lvl;
   document.getElementById('hudCrops').textContent = Object.values(state.cropInv).reduce((a,b)=>a+b,0);
+  document.getElementById('expandBtn').textContent = gardenMaxed() ? '🌱 Max garden' : `🌱 Expand (${fmtBig(expandCost())})`;
   const sprEl=document.getElementById('hudSpr'); const a=sprinklerActive();
   if(a){ const g=GEAR_MAP[a.tier]; sprEl.style.display='flex'; sprEl.textContent=`${g.emoji} ${fmtTime((a.until-now())/1000)}`; }
   else sprEl.style.display='none';
@@ -1172,8 +1200,10 @@ function draw(){
   for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
     if((r+c)%2===0){ ctx.fillRect(c*TS,r*TS,TS,TS); }
   }
-  // garden fenced dirt area background
-  roundRect(3.4*TS,6.4*TS, 8.2*TS, 6.2*TS, 14, '#6b8f4f');
+  // garden fenced dirt area background (grows with the plots)
+  let gx0=1e9,gy0=1e9,gx1=-1e9,gy1=-1e9;
+  for(const pl of state.plots){ gx0=Math.min(gx0,pl.x); gy0=Math.min(gy0,pl.y); gx1=Math.max(gx1,pl.x); gy1=Math.max(gy1,pl.y); }
+  roundRect(gx0-TS*0.7, gy0-TS*0.7, (gx1-gx0)+TS*1.4, (gy1-gy0)+TS*1.4, 14, '#6b8f4f');
   // sign posts / paths from spawn to buildings
   ctx.strokeStyle='rgba(196,168,120,.55)'; ctx.lineWidth=26; ctx.lineCap='round';
   path([[WORLD_W*0.42,WORLD_H*0.55],[BUILDINGS[0].door.x,BUILDINGS[0].door.y]]);
@@ -1467,7 +1497,8 @@ function exportCode(){ try{ return btoa(unescape(encodeURIComponent(JSON.stringi
 function importCode(code){
   const d=JSON.parse(decodeURIComponent(escape(atob((code||'').trim()))));
   if(!d || !d.player) throw new Error('bad code');
-  d.plots = PLOTS.map((p,i)=>normalizePlot(p, d.plots && d.plots[i]));
+  if(typeof d.expansions!=='number') d.expansions=0;
+  d.plots = Array.from({length:plotCapacity(d.expansions)}, (_,i)=>normalizePlot(PLOT_CELLS[i], d.plots && d.plots[i]));
   if(!d.gearShop || !Object.keys(d.gearShop).length){ d.gearShop={}; }
   if(d.tool!=='shovel' && d.tool!=='can') d.tool='none';
   if(typeof d.wateringUses!=='number') d.wateringUses=0;
@@ -1524,6 +1555,7 @@ document.getElementById('loadSave').onclick=()=>{
 document.getElementById('friendsBtn').onclick=()=>{ if(state.setupDone) openFriends(); };
 document.getElementById('addFriendBtn').onclick=addFriend;
 document.getElementById('fishBtn').onclick=fish;
+document.getElementById('expandBtn').onclick=expandGarden;
 document.getElementById('notif').onclick=()=>{ document.getElementById('notif').classList.remove('show'); if(state.setupDone) openSeedShop(); };
 document.getElementById('clearHist').onclick=()=>{ if(confirm('Clear your history? (progress is kept)')){ logs=[]; save(); renderHistory(); } };
 document.getElementById('resetBtn').onclick=()=>{ if(confirm('Reset all progress?')){ localStorage.removeItem('sproutWorld'); location.reload(); } };
