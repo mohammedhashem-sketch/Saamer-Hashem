@@ -932,8 +932,8 @@ function forceRestock(){
   log(`Paid ${RESTOCK_COST.toLocaleString()} 🪙 to restock the Seed Shop.`);
   renderShop(); renderHUD();
 }
-// ---- Garden expansion: first 1B coins, then 20B each time ----
-function expandCost(){ return (state.expansions||0)===0 ? 1e9 : 20e9; }
+// ---- Garden expansion: starts at 100M, ×5 more expensive each time ----
+function expandCost(){ return 1e8 * Math.pow(5, state.expansions||0); }
 function gardenMaxed(){ return plotCapacity(state.expansions) >= PLOT_CELLS.length; }
 function expandGarden(){
   if(!state.setupDone) return;
