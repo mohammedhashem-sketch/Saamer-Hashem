@@ -160,6 +160,52 @@
   #notif .tap{font-size:11px;color:var(--muted);font-weight:600}
   .tiny{font-size:11px;color:var(--muted);text-align:center;margin-top:10px}
   .tiny a{color:var(--muted);cursor:pointer;text-decoration:underline}
+
+  /* Bag button + hotbar bag slot */
+  .slot.bag{border-color:#c78a2f;background:rgba(72,55,29,.9)}
+  #hudFace{width:20px;height:20px;border-radius:6px;vertical-align:-5px;margin-right:2px}
+
+  /* Bag (drag seeds between your bar and your bag) */
+  .baghelp{font-size:12px;color:var(--muted);margin:0 0 12px;line-height:1.5}
+  .bagzone{border:2px dashed var(--line);border-radius:14px;padding:10px;margin-bottom:12px;min-height:78px;background:rgba(0,0,0,.15);transition:border-color .15s,background .15s}
+  .bagzone.over{border-color:var(--gold);background:rgba(255,213,74,.10)}
+  .bagzone h3{margin:0 0 8px;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:flex;align-items:center;gap:6px}
+  .bagzone .grid{display:flex;flex-wrap:wrap;gap:8px;min-height:52px}
+  .bagitem{width:60px;background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:7px 4px;text-align:center;cursor:grab;position:relative;touch-action:none;user-select:none}
+  .bagitem:active{cursor:grabbing}
+  .bagitem .be{font-size:24px;line-height:1}
+  .bagitem .bn{font-size:10px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bagitem .bq{position:absolute;top:2px;right:4px;font-size:10px;font-weight:800;color:var(--gold)}
+  .bagitem.dragging{opacity:.35}
+  .bagempty{color:var(--muted);font-size:12px;padding:14px;text-align:center;width:100%}
+  #dragGhost{position:fixed;z-index:60;pointer-events:none;font-size:30px;transform:translate(-50%,-50%) scale(1.15);filter:drop-shadow(0 6px 8px rgba(0,0,0,.5));display:none}
+
+  /* Character builder */
+  .charwrap{display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap}
+  #charPreview,#setupPreview{background:radial-gradient(circle at 50% 40%,#2b5236,#16301f);border:1px solid var(--line);border-radius:14px;width:120px;height:140px;flex-shrink:0}
+  .charopts{flex:1;min-width:200px}
+  .optrow{margin-bottom:10px}
+  .optrow .ol{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;display:flex;justify-content:space-between}
+  .chips2{display:flex;gap:6px;flex-wrap:wrap}
+  .ch2{padding:6px 10px;border:1px solid var(--line);border-radius:9px;background:var(--panel2);cursor:pointer;font-size:13px;font-weight:700}
+  .ch2.sel{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold) inset;color:var(--gold)}
+  .sw{width:28px;height:28px;border-radius:50%;border:2px solid var(--line);cursor:pointer}
+  .sw.sel{border-color:#fff;box-shadow:0 0 0 2px rgba(255,255,255,.45)}
+
+  /* Missions */
+  .mcard{border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px;background:var(--panel2)}
+  .mcard.done{border-color:#2f7d4a;background:rgba(47,125,74,.15)}
+  .mcard .mtop{display:flex;align-items:center;gap:9px}
+  .mcard .mico{font-size:26px}
+  .mcard .mnm{font-weight:800;font-size:15px}
+  .mcard .mds{font-size:12px;color:var(--muted);margin-top:2px;line-height:1.4}
+  .mcard .mrw{font-size:12px;color:#ffe9a8;margin-top:6px}
+  .mbar{height:9px;background:rgba(0,0,0,.35);border-radius:6px;overflow:hidden;margin:9px 0 4px}
+  .mbar > i{display:block;height:100%;background:linear-gradient(90deg,#5be08a,#2f7d4a);border-radius:6px;transition:width .3s}
+  .mprog{display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
+  .mclaim{width:100%;margin-top:9px}
+  .mclaim:disabled{background:#3a4a40;color:#7d908a;cursor:not-allowed}
+  .mdone-tag{margin-left:auto;color:#5be08a;font-weight:800;font-size:12px}
 </style>
 </head>
 <body>
@@ -167,8 +213,10 @@
 
 <div class="hud">
   <div class="grp">
-    <div class="chip name" id="hudName">🧑‍🌾 Farmer</div>
+    <div class="chip name click" id="hudName">🧑‍🌾 Farmer</div>
     <div class="chip">🏆 Lv <span id="hudLevel">1</span></div>
+    <div class="chip click" id="missionsBtn">🎯 Missions</div>
+    <div class="chip click" id="lookBtn">🎨 Look</div>
     <div class="chip click" id="histBtn">📜 History</div>
     <div class="chip click" id="friendsBtn">👥 Friends</div>
     <div class="chip click" id="saveBtn">💾 Save</div>
@@ -200,6 +248,7 @@
 </div>
 
 <div class="toast" id="toast"></div>
+<div id="dragGhost"></div>
 
 <!-- Character setup -->
 <div class="overlay" id="setupOverlay">
@@ -211,8 +260,11 @@
       <input id="nameInput" maxlength="16" placeholder="Enter your name" value="">
     </div>
     <div class="field">
-      <label>Choose your avatar</label>
-      <div class="avatars" id="avatarPick"></div>
+      <label>Build your character</label>
+      <div class="charwrap">
+        <canvas id="setupPreview" width="120" height="140"></canvas>
+        <div class="charopts" id="setupCharOpts"></div>
+      </div>
     </div>
     <div class="field">
       <label>Name tag color</label>
@@ -316,6 +368,58 @@
   </div>
 </div>
 
+<!-- Bag (store seeds off your bar; drag to move them) -->
+<div class="overlay" id="bagOverlay">
+  <div class="modal">
+    <span class="x" data-close="bagOverlay">✕</span>
+    <h2>🎒 Seed Bag</h2>
+    <p class="baghelp">Drag a seed into your <b>Bag</b> to store it and clear up your bar. Drag it back onto your <b>Bar</b> to plant it again. (You can also just tap a seed to move it.)</p>
+    <div class="bagzone" id="zoneBar" data-zone="bar">
+      <h3>🌿 On your bar</h3>
+      <div class="grid" id="barGrid"></div>
+    </div>
+    <div class="bagzone" id="zoneBag" data-zone="bag">
+      <h3>🎒 In your bag</h3>
+      <div class="grid" id="bagGrid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Look / character customizer -->
+<div class="overlay" id="lookOverlay">
+  <div class="modal">
+    <span class="x" data-close="lookOverlay">✕</span>
+    <h2>🎨 Your Look</h2>
+    <p class="sub">Change your name and build your character — pick a hairstyle, eyes, eyebrows and more!</p>
+    <div class="field">
+      <label>Farmer name</label>
+      <input id="lookName" maxlength="16" placeholder="Enter your name">
+    </div>
+    <div class="field">
+      <label>Character</label>
+      <div class="charwrap">
+        <canvas id="charPreview" width="120" height="140"></canvas>
+        <div class="charopts" id="charOpts"></div>
+      </div>
+    </div>
+    <div class="field">
+      <label>Name tag color</label>
+      <div class="colors" id="lookColorPick"></div>
+    </div>
+    <button class="primary" id="saveLookBtn">✅ Save my look</button>
+  </div>
+</div>
+
+<!-- Missions -->
+<div class="overlay" id="missionsOverlay">
+  <div class="modal">
+    <span class="x" data-close="missionsOverlay">✕</span>
+    <h2>🎯 Missions</h2>
+    <p class="sub">Complete these tough challenges to earn rare seeds and big XP for levels. Rewards can only be claimed once!</p>
+    <div id="missionsList"></div>
+  </div>
+</div>
+
 <!-- History -->
 <div class="overlay" id="historyOverlay">
   <div class="modal">
@@ -353,6 +457,8 @@ const SEEDS = [
   { id:'galaxy',    name:'Galaxy Flower', emoji:'🌌', rarity:'supermythic', cost:1500000,  grow:7200, sell:1000000, stockChance:0.0001, cap:3 },
   { id:'diamond',   name:'Diamond Rose',  emoji:'💎', rarity:'supermythic', cost:3000000,  grow:7200, sell:2000000, stockChance:0.0001, cap:2 },
   { id:'unicorn',   name:'Unicorn Bloom', emoji:'🦄', rarity:'supermythic', cost:6000000,  grow:7200, sell:4000000, stockChance:0.0001, cap:2 },
+  // 🎯 Mission reward only — a super mythic that pays 10,000,000 coins per fruit
+  { id:'fortune',   name:'Fortune Fruit', emoji:'💰', rarity:'supermythic', cost:0, grow:7200, sell:10000000, stockChance:0, cap:3 },
   // 🏖️ Summer seeds — only from the summer stand (fishing / summer shop), never in the normal shop
   { id:'pineapple',   name:'Pineapple',       emoji:'🍍', rarity:'common',     cost:0, grow:300,  sell:600,    stockChance:0, cap:4 },
   { id:'orange',      name:'Orange',          emoji:'🍊', rarity:'rare',       cost:0, grow:600,  sell:1500,   stockChance:0, cap:5 },
@@ -440,6 +546,108 @@ const SUMMER_SHOP = [
 const AVATARS = ['🧑‍🌾','👩‍🌾','👨‍🌾','🧙','🤠','🧝','👷','🐰','🦊','🐻'];
 const NAME_COLORS = ['#5be08a','#4aa3ff','#ff9f38','#ff4d7d','#b56cff','#ffd54a','#ff6b6b','#57e0d0'];
 
+// ---- Build-a-character system ----
+const SKINS      = ['#ffe0bd','#f3c99a','#e0ac69','#c68642','#8d5524','#5c3a21'];
+const HAIR_COLS  = ['#241a10','#5a3210','#a55d1b','#e0b84a','#e8e8e8','#e0402f','#3a6ea5','#a24bd6','#2fa15b'];
+const SHIRT_COLS = ['#5be08a','#4aa3ff','#ff9f38','#ff4d7d','#b56cff','#ffd54a','#ff6b6b','#57e0d0','#e8e8e8','#3a4a40'];
+const HAIR_STYLES = [
+  {id:'short',label:'Short'},{id:'long',label:'Long'},{id:'spiky',label:'Spiky'},
+  {id:'curly',label:'Curly'},{id:'bun',label:'Bun'},{id:'mohawk',label:'Mohawk'},
+  {id:'cap',label:'Cap'},{id:'bald',label:'Bald'},
+];
+const EYE_STYLES  = [{id:'round',label:'Round'},{id:'happy',label:'Happy'},{id:'wink',label:'Wink'},{id:'sleepy',label:'Sleepy'},{id:'star',label:'Star'}];
+const BROW_STYLES = [{id:'normal',label:'Normal'},{id:'raised',label:'Raised'},{id:'angry',label:'Bold'},{id:'thin',label:'Thin'}];
+const MOUTH_STYLES= [{id:'smile',label:'Smile'},{id:'grin',label:'Grin'},{id:'neutral',label:'Chill'},{id:'open',label:'Wow'},{id:'cool',label:'Smirk'}];
+function defaultChar(){ return { skin:1, hair:0, hairCol:1, brow:0, eye:0, mouth:0, shirt:0 }; }
+function migrateChar(c){ const d=defaultChar(); c=c||{}; for(const k in d){ if(typeof c[k]!=='number') c[k]=d[k]; } return c; }
+
+// path helper that works on any 2D context (canvas or offscreen preview)
+function rrp(g,x,y,w,h,r){ g.beginPath(); g.moveTo(x+r,y); g.arcTo(x+w,y,x+w,y+h,r); g.arcTo(x+w,y+h,x,y+h,r); g.arcTo(x,y+h,x,y,r); g.arcTo(x,y,x+w,y,r); g.closePath(); }
+
+// Draw a built character. (x, gy) is the point on the ground under their feet.
+function drawCharacter(g, x, gy, ch, s){
+  ch = migrateChar(ch);
+  const skin=SKINS[ch.skin]||SKINS[0], hair=HAIR_COLS[ch.hairCol]||HAIR_COLS[0], shirt=SHIRT_COLS[ch.shirt]||SHIRT_COLS[0];
+  const headR=10*s, headY=gy-30*s;
+  const bodyW=20*s, bodyH=18*s, bodyTop=headY+headR-2*s;
+  // legs + shoes
+  g.fillStyle='#3a2f5a'; g.fillRect(x-6*s, gy-10*s, 5*s, 10*s); g.fillRect(x+1*s, gy-10*s, 5*s, 10*s);
+  g.fillStyle='#20180c'; rrp(g,x-7.5*s,gy-4*s,6.5*s,4*s,2*s); g.fill(); rrp(g,x+1*s,gy-4*s,6.5*s,4*s,2*s); g.fill();
+  // arms (behind torso)
+  g.fillStyle=shirt; rrp(g,x-bodyW/2-3.5*s,bodyTop+2*s,4*s,bodyH-5*s,2*s); g.fill(); rrp(g,x+bodyW/2-0.5*s,bodyTop+2*s,4*s,bodyH-5*s,2*s); g.fill();
+  // hands
+  g.fillStyle=skin; g.beginPath(); g.arc(x-bodyW/2-1.5*s,bodyTop+bodyH-4*s,2.4*s,0,7); g.fill(); g.beginPath(); g.arc(x+bodyW/2+1.5*s,bodyTop+bodyH-4*s,2.4*s,0,7); g.fill();
+  // torso
+  g.fillStyle=shirt; rrp(g,x-bodyW/2,bodyTop,bodyW,bodyH,6*s); g.fill();
+  // neck
+  g.fillStyle=skin; g.fillRect(x-3*s,headY+headR-4*s,6*s,6*s);
+  // head + ears
+  g.fillStyle=skin; g.beginPath(); g.arc(x,headY,headR,0,7); g.fill();
+  g.beginPath(); g.arc(x-headR+1*s,headY+1*s,2.2*s,0,7); g.arc(x+headR-1*s,headY+1*s,2.2*s,0,7); g.fill();
+  drawFace(g,x,headY,headR,ch,s);
+  drawHair(g,x,headY,headR,ch,hair,s);
+}
+function drawFace(g,x,hy,R,ch,s){
+  const ex=4*s, ey=hy+0*s;                       // eye anchor
+  // eyebrows
+  g.strokeStyle='#3a2a18'; g.lineWidth=1.6*s; g.lineCap='round';
+  const bstyle=BROW_STYLES[ch.brow].id, by=hy-4.2*s;
+  const brow=(cx,dir)=>{ g.beginPath();
+    if(bstyle==='raised'){ g.moveTo(cx-2.2*s,by-1*s); g.lineTo(cx+2.2*s,by-1.6*s); }
+    else if(bstyle==='angry'){ g.lineWidth=2.2*s; g.moveTo(cx-2.2*s,by-1.4*s); g.lineTo(cx+2.2*s,by+0.4*s*(dir)); }
+    else if(bstyle==='thin'){ g.lineWidth=1*s; g.moveTo(cx-2*s,by); g.lineTo(cx+2*s,by-0.4*s); }
+    else { g.moveTo(cx-2.2*s,by-0.2*s); g.lineTo(cx+2.2*s,by-0.6*s); }
+    g.stroke(); };
+  brow(x-ex,1); brow(x+ex,-1);
+  // eyes
+  const estyle=EYE_STYLES[ch.eye].id;
+  const eye=(cx)=>{
+    if(estyle==='happy'){ g.strokeStyle='#20140a'; g.lineWidth=1.6*s; g.beginPath(); g.arc(cx,ey+1*s,2.2*s,Math.PI*1.15,Math.PI*1.85); g.stroke(); }
+    else if(estyle==='sleepy'){ g.strokeStyle='#20140a'; g.lineWidth=1.6*s; g.beginPath(); g.moveTo(cx-2.2*s,ey); g.lineTo(cx+2.2*s,ey); g.stroke(); }
+    else if(estyle==='star'){ g.fillStyle='#ffd54a'; drawStar(g,cx,ey,2.6*s,5); }
+    else { g.fillStyle='#fff'; g.beginPath(); g.arc(cx,ey,2.4*s,0,7); g.fill(); g.fillStyle='#20140a'; g.beginPath(); g.arc(cx,ey,1.3*s,0,7); g.fill(); }
+  };
+  if(estyle==='wink'){ // left winks, right open
+    g.strokeStyle='#20140a'; g.lineWidth=1.6*s; g.beginPath(); g.arc(x-ex,ey+1*s,2.2*s,Math.PI*1.15,Math.PI*1.85); g.stroke();
+    g.fillStyle='#fff'; g.beginPath(); g.arc(x+ex,ey,2.4*s,0,7); g.fill(); g.fillStyle='#20140a'; g.beginPath(); g.arc(x+ex,ey,1.3*s,0,7); g.fill();
+  } else { eye(x-ex); eye(x+ex); }
+  // mouth
+  const m=MOUTH_STYLES[ch.mouth].id, my=hy+5*s;
+  g.strokeStyle='#a83b32'; g.fillStyle='#a83b32'; g.lineWidth=1.6*s;
+  if(m==='smile'){ g.beginPath(); g.arc(x,my-1*s,3*s,Math.PI*0.15,Math.PI*0.85); g.stroke(); }
+  else if(m==='grin'){ g.beginPath(); g.arc(x,my-1*s,3.4*s,0,Math.PI); g.fill(); g.fillStyle='#fff'; rrp(g,x-2.6*s,my-0.6*s,5.2*s,1.6*s,0.6*s); g.fill(); }
+  else if(m==='neutral'){ g.beginPath(); g.moveTo(x-2.6*s,my); g.lineTo(x+2.6*s,my); g.stroke(); }
+  else if(m==='open'){ g.beginPath(); g.ellipse(x,my,2.2*s,2.6*s,0,0,7); g.fill(); }
+  else { g.beginPath(); g.moveTo(x-2.8*s,my); g.quadraticCurveTo(x,my+2*s,x+2.8*s,my-1.2*s); g.stroke(); }
+}
+function drawStar(g,cx,cy,r,n){ g.beginPath(); for(let i=0;i<n*2;i++){ const rr=i%2?r*0.45:r; const a=-Math.PI/2+i*Math.PI/n; g[i?'lineTo':'moveTo'](cx+Math.cos(a)*rr,cy+Math.sin(a)*rr); } g.closePath(); g.fill(); }
+function drawHair(g,x,hy,R,ch,col,s){
+  const st=HAIR_STYLES[ch.hair].id;
+  g.fillStyle=col;
+  if(st==='bald') return;
+  if(st==='cap'){ // baseball cap
+    g.beginPath(); g.arc(x,hy-1*s,R+1*s,Math.PI,0); g.fill();
+    rrp(g,x-2*s,hy-2*s,R+6*s,3.2*s,1.6*s); g.fill();
+    return;
+  }
+  if(st==='short'){ g.beginPath(); g.arc(x,hy-1*s,R+1*s,Math.PI*1.03,Math.PI*1.97); g.fill(); rrp(g,x-R,hy-4*s,R*2,5*s,3*s); g.fill(); }
+  else if(st==='long'){ rrp(g,x-R-1*s,hy-3*s,R*2+2*s,R+9*s,5*s); g.fill(); g.fillStyle=SKINS[ch.skin]; g.beginPath(); g.arc(x,hy+1*s,R-0.5*s,0,7); g.fill(); g.fillStyle=col; g.beginPath(); g.arc(x,hy-2*s,R+1*s,Math.PI,0); g.fill(); rrp(g,x-R-1*s,hy-3*s,R*2+2*s,6*s,3*s); g.fill(); }
+  else if(st==='spiky'){ g.beginPath(); for(let i=-2;i<=2;i++){ const bx=x+i*4.5*s; g.moveTo(bx-3*s,hy-4*s); g.lineTo(bx,hy-13*s); g.lineTo(bx+3*s,hy-4*s); } g.arc(x,hy-2*s,R+0.5*s,Math.PI,0,true); g.closePath(); g.fill(); }
+  else if(st==='curly'){ for(let i=-2;i<=2;i++){ g.beginPath(); g.arc(x+i*4.8*s,hy-7*s,4*s,0,7); g.fill(); } g.beginPath(); g.arc(x-R+1*s,hy-2*s,3.4*s,0,7); g.arc(x+R-1*s,hy-2*s,3.4*s,0,7); g.fill(); }
+  else if(st==='bun'){ g.beginPath(); g.arc(x,hy-R-2*s,3.6*s,0,7); g.fill(); g.beginPath(); g.arc(x,hy-1*s,R+1*s,Math.PI*1.03,Math.PI*1.97); g.fill(); rrp(g,x-R,hy-4*s,R*2,5*s,3*s); g.fill(); }
+  else if(st==='mohawk'){ rrp(g,x-2.2*s,hy-13*s,4.4*s,13*s,2*s); g.fill(); }
+}
+
+// Render the character to a small data URL for the HUD name chip.
+let charURL='';
+function refreshCharURL(){
+  try{
+    const c=document.createElement('canvas'); c.width=40; c.height=44;
+    const g=c.getContext('2d'); drawCharacter(g, 20, 42, state.player.char, 1.0);
+    charURL=c.toDataURL();
+  }catch(e){ charURL=''; }
+}
+
 // ---- World layout ----
 const TS = 48;                 // tile size (px)
 const RESTOCK_MS = 4*60*1000;  // shop restocks every 4 minutes
@@ -496,9 +704,12 @@ function randomDecorSeed(){ return SEEDS[Math.floor(Math.random()*SEEDS.length)]
 let logs = [];   // declared before load() so load() can populate it safely
 let state = load() || {
   setupDone:false,
-  player:{ x:WORLD_W*0.42, y:WORLD_H*0.55, name:'Farmer', avatar:'🧑‍🌾', color:'#5be08a' },
+  player:{ x:WORLD_W*0.42, y:WORLD_H*0.55, name:'Farmer', avatar:'🧑‍🌾', color:'#5be08a', char:defaultChar() },
   coins:30,
   seedInv:{},   // seeds to plant
+  bag:{},       // seedIds stored in the bag (kept off the hotbar)
+  missions:{},  // missionId -> 'claimed'
+  stats:{ harvested:0, traitCrops:0, rainbow:0, coinsEarned:0 },  // lifetime totals for missions
   cropInv:{},   // harvested crops to sell
   plots:PLOTS.map(p=>({seedId:null,fruits:0,timers:[]})),
   expansions:0, // garden expansions bought
@@ -725,6 +936,10 @@ function handlePlot(i){
       const key = traits.length ? s.id+'#'+traits.join('#') : s.id;
       state.cropInv[key]=(state.cropInv[key]||0)+take;
       state.xp += Math.round(s.sell*mult*take/10);
+      if(!state.stats) state.stats={harvested:0,traitCrops:0,rainbow:0,coinsEarned:0};
+      state.stats.harvested=(state.stats.harvested||0)+take;
+      if(traits.length) state.stats.traitCrops=(state.stats.traitCrops||0)+take;
+      if(traits.includes('rainbow')) state.stats.rainbow=(state.stats.rainbow||0)+take;
       pl.fruits -= take;
       const tag = traits.length ? traits.map(t=>TRAITS[t].emoji).join('')+' ' : '';
       const bigTrait = traits.some(t=>TRAITS[t].mult>=5);
@@ -981,7 +1196,7 @@ function cropLabel(key){
 function sellCrop(key){
   const n=state.cropInv[key]; if(!n) return;
   const v=cropValue(key)*n; delete state.cropInv[key];
-  state.coins += v;
+  state.coins += v; state.stats.coinsEarned=(state.stats.coinsEarned||0)+v;
   toast(`Sold ${n}× ${parseCrop(key).seed.emoji} for ${v} 🪙`);
   log(`Sold ${n}× <b>${cropLabel(key)}</b> for +${v} 🪙`);
   renderMarket(); renderHUD();
@@ -990,7 +1205,7 @@ function sellAll(){
   let total=0,count=0;
   for(const key in state.cropInv){ total+=cropValue(key)*state.cropInv[key]; count+=state.cropInv[key]; }
   if(!count){ toast('No crops to sell.'); return; }
-  state.coins+=total; state.cropInv={};
+  state.coins+=total; state.stats.coinsEarned=(state.stats.coinsEarned||0)+total; state.cropInv={};
   toast(`Sold ${count} crops for ${total} 🪙`);
   log(`Sold <b>${count}</b> crops for +${total} 🪙`);
   renderMarket(); renderHUD();
@@ -1169,7 +1384,9 @@ function renderHUD(){
   const lvl = levelFromXp(state.xp);
   if(state.lastLevel && lvl>state.lastLevel){ log(`🏆 Reached <b>Level ${lvl}</b>!`); }
   state.lastLevel = lvl;
-  document.getElementById('hudName').textContent = state.player.avatar+' '+state.player.name;
+  const nameEl=document.getElementById('hudName');
+  nameEl.innerHTML = (charURL?`<img id="hudFace" src="${charURL}">`:'🧑‍🌾 ')+'';
+  nameEl.appendChild(document.createTextNode(state.player.name));
   document.getElementById('hudCoins').textContent = Math.floor(state.coins).toLocaleString();
   document.getElementById('hudLevel').textContent = lvl;
   document.getElementById('hudCrops').textContent = Object.values(state.cropInv).reduce((a,b)=>a+b,0);
@@ -1179,8 +1396,21 @@ function renderHUD(){
   else sprEl.style.display='none';
   save();
 }
+// Seeds shown on the bar = owned seeds that are NOT stored in the bag.
+function hotbarSeedIds(){
+  return Object.keys(state.seedInv)
+    .filter(id=>!(state.bag&&state.bag[id]))
+    .sort((a,b)=>RARITY_ORDER[SEED_MAP[a].rarity]-RARITY_ORDER[SEED_MAP[b].rarity]);
+}
 function renderHotbar(){
   const hb=document.getElementById('hotbar'); hb.innerHTML='';
+  // --- Bag button ---
+  const bagSlot=document.createElement('div');
+  bagSlot.className='slot bag';
+  const bagCount=Object.keys(state.bag||{}).filter(id=>state.seedInv[id]).length;
+  bagSlot.innerHTML=`<div class="e">🎒</div><div class="c">bag${bagCount?' ·'+bagCount:''}</div>`;
+  bagSlot.onclick=openBag;
+  hb.appendChild(bagSlot);
   // --- Tool slots (always Shovel; Watering Can when you have uses) ---
   const shovel=document.createElement('div');
   shovel.className='slot tool'+(state.tool==='shovel'?' sel':'');
@@ -1194,9 +1424,9 @@ function renderHotbar(){
     can.onclick=()=>{ state.tool = state.tool==='can'?'none':'can'; renderHotbar(); };
     hb.appendChild(can);
   }
-  // --- Seed slots ---
-  const ids=Object.keys(state.seedInv).sort((a,b)=>RARITY_ORDER[SEED_MAP[a].rarity]-RARITY_ORDER[SEED_MAP[b].rarity]);
-  if(!ids.length){ const e=document.createElement('div'); e.className='slot empty-hot'; e.textContent='Buy seeds at the 🌱 Seed Shop'; hb.appendChild(e); }
+  // --- Seed slots (bagged seeds are hidden) ---
+  const ids=hotbarSeedIds();
+  if(!ids.length){ const e=document.createElement('div'); e.className='slot empty-hot'; e.textContent=bagCount?'Seeds are in your 🎒 bag':'Buy seeds at the 🌱 Seed Shop'; hb.appendChild(e); }
   ids.forEach((id,i)=>{
     const s=SEED_MAP[id];
     const d=document.createElement('div');
@@ -1207,7 +1437,7 @@ function renderHotbar(){
   });
 }
 function selectSlot(i){
-  const ids=Object.keys(state.seedInv).sort((a,b)=>RARITY_ORDER[SEED_MAP[a].rarity]-RARITY_ORDER[SEED_MAP[b].rarity]);
+  const ids=hotbarSeedIds();
   if(ids[i]){ state.selectedSeed=ids[i]; state.tool='none'; renderHotbar(); }
 }
 
@@ -1461,9 +1691,10 @@ function drawFx(){
 }
 function drawPlayer(){
   const p=state.player;
+  const bob=Math.sin(now()/220)*1.5;
   ctx.fillStyle='rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(p.x,p.y+16,15,7,0,0,Math.PI*2); ctx.fill();
-  ctx.font='34px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillText(p.avatar, p.x, p.y);
+  if(p.char){ drawCharacter(ctx, p.x, p.y+16+bob, p.char, 1.05); }
+  else { ctx.font='34px serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(p.avatar, p.x, p.y); }
   // name tag
   ctx.font='700 13px Segoe UI, sans-serif';
   const tw=ctx.measureText(p.name).width;
@@ -1570,26 +1801,196 @@ function importCode(code){
   if(!d.nextSummer) d.nextSummer=now();
   if(typeof d.fishUntil!=='number') d.fishUntil=0;
   if(!d.nextFish) d.nextFish=now()+30*1000;
+  if(!d.player.char) d.player.char=defaultChar(); else d.player.char=migrateChar(d.player.char);
+  if(!d.bag || typeof d.bag!=='object') d.bag={};
+  if(!d.missions || typeof d.missions!=='object') d.missions={};
+  if(!d.stats || typeof d.stats!=='object') d.stats={harvested:0,traitCrops:0,rainbow:0,coinsEarned:0};
   logs = Array.isArray(d.logs)? d.logs : [];
   state = d;
+  refreshCharURL();
   save(); renderHUD(); renderHotbar();
   document.getElementById('saveOverlay').classList.remove('show');
   toast('✅ Save loaded!');
   log('Loaded a save code.');
 }
 
+// ============================================================
+//  Seed Bag — drag seeds between your bar and your bag
+// ============================================================
+function openBag(){ if(!state.setupDone) return; renderBag(); show('bagOverlay'); }
+function renderBag(){
+  const bar=document.getElementById('barGrid'), bag=document.getElementById('bagGrid');
+  bar.innerHTML=''; bag.innerHTML='';
+  const owned=Object.keys(state.seedInv).filter(id=>state.seedInv[id]>0)
+    .sort((a,b)=>RARITY_ORDER[SEED_MAP[a].rarity]-RARITY_ORDER[SEED_MAP[b].rarity]);
+  const barIds=owned.filter(id=>!state.bag[id]);
+  const bagIds=owned.filter(id=>state.bag[id]);
+  const tile=(id)=>{ const s=SEED_MAP[id]; const d=document.createElement('div'); d.className='bagitem'; d.dataset.id=id;
+    d.innerHTML=`<span class="bq">×${state.seedInv[id]}</span><div class="be">${s.emoji}</div><div class="bn">${s.name}</div>`;
+    attachBagDrag(d,id); return d; };
+  if(!barIds.length) bar.innerHTML='<div class="bagempty">No seeds on your bar</div>'; else barIds.forEach(id=>bar.appendChild(tile(id)));
+  if(!bagIds.length) bag.innerHTML='<div class="bagempty">Drag seeds here to store them 🎒</div>'; else bagIds.forEach(id=>bag.appendChild(tile(id)));
+}
+function setBagged(id,val){
+  if(val) state.bag[id]=true; else delete state.bag[id];
+  if(val && state.selectedSeed===id) state.selectedSeed=hotbarSeedIds()[0]||null;
+  save(); renderBag(); renderHotbar();
+}
+let bagDrag=null;
+function bagZoneAt(x,y){ for(const z of document.querySelectorAll('.bagzone')){ const r=z.getBoundingClientRect(); if(x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom) return z.dataset.zone; } return null; }
+function attachBagDrag(el,id){
+  el.addEventListener('pointerdown',e=>{
+    e.preventDefault(); bagDrag={id, el, sx:e.clientX, sy:e.clientY, moved:false};
+    try{ el.setPointerCapture(e.pointerId); }catch(_){}
+  });
+  el.addEventListener('pointermove',e=>{
+    if(!bagDrag||bagDrag.id!==id) return;
+    if(!bagDrag.moved && Math.hypot(e.clientX-bagDrag.sx, e.clientY-bagDrag.sy)>6){
+      bagDrag.moved=true; el.classList.add('dragging');
+      const g=document.getElementById('dragGhost'); g.textContent=SEED_MAP[id].emoji; g.style.display='block';
+    }
+    if(bagDrag.moved){
+      const g=document.getElementById('dragGhost'); g.style.left=e.clientX+'px'; g.style.top=e.clientY+'px';
+      const zn=bagZoneAt(e.clientX,e.clientY);
+      document.querySelectorAll('.bagzone').forEach(z=>z.classList.toggle('over', z.dataset.zone===zn));
+    }
+  });
+  const finish=(e)=>{
+    if(!bagDrag||bagDrag.id!==id) return;
+    document.getElementById('dragGhost').style.display='none';
+    document.querySelectorAll('.bagzone').forEach(z=>z.classList.remove('over'));
+    el.classList.remove('dragging');
+    if(!bagDrag.moved){ setBagged(id, !state.bag[id]); }        // tap toggles
+    else { const zone=bagZoneAt(e.clientX,e.clientY);
+      if(zone==='bag') setBagged(id,true); else if(zone==='bar') setBagged(id,false); else renderBag(); }
+    bagDrag=null;
+  };
+  el.addEventListener('pointerup',finish);
+  el.addEventListener('pointercancel',()=>{ document.getElementById('dragGhost').style.display='none'; document.querySelectorAll('.bagzone').forEach(z=>z.classList.remove('over')); el.classList.remove('dragging'); bagDrag=null; });
+}
+
+// ============================================================
+//  Character builder (shared by setup + Look screens)
+// ============================================================
+function buildCharUI(optsEl, previewCanvas, char){
+  const pv=previewCanvas.getContext('2d');
+  function redraw(){ pv.clearRect(0,0,previewCanvas.width,previewCanvas.height); drawCharacter(pv, previewCanvas.width/2, previewCanvas.height-14, char, 2.4); }
+  optsEl.innerHTML='';
+  const rowChips=(label,list,key)=>{
+    const row=document.createElement('div'); row.className='optrow';
+    row.innerHTML=`<div class="ol"><span>${label}</span></div>`;
+    const wrap=document.createElement('div'); wrap.className='chips2';
+    list.forEach((it,idx)=>{ const c=document.createElement('div'); c.className='ch2'+(char[key]===idx?' sel':''); c.textContent=it.label;
+      c.onclick=()=>{ char[key]=idx; wrap.querySelectorAll('.ch2').forEach(x=>x.classList.remove('sel')); c.classList.add('sel'); redraw(); };
+      wrap.appendChild(c); });
+    row.appendChild(wrap); optsEl.appendChild(row);
+  };
+  const rowSwatch=(label,cols,key)=>{
+    const row=document.createElement('div'); row.className='optrow';
+    row.innerHTML=`<div class="ol"><span>${label}</span></div>`;
+    const wrap=document.createElement('div'); wrap.className='chips2';
+    cols.forEach((col,idx)=>{ const c=document.createElement('div'); c.className='sw'+(char[key]===idx?' sel':''); c.style.background=col;
+      c.onclick=()=>{ char[key]=idx; wrap.querySelectorAll('.sw').forEach(x=>x.classList.remove('sel')); c.classList.add('sel'); redraw(); };
+      wrap.appendChild(c); });
+    row.appendChild(wrap); optsEl.appendChild(row);
+  };
+  rowSwatch('Skin', SKINS, 'skin');
+  rowChips('Hair style', HAIR_STYLES, 'hair');
+  rowSwatch('Hair color', HAIR_COLS, 'hairCol');
+  rowChips('Eyebrows', BROW_STYLES, 'brow');
+  rowChips('Eyes', EYE_STYLES, 'eye');
+  rowChips('Mouth', MOUTH_STYLES, 'mouth');
+  rowSwatch('Shirt', SHIRT_COLS, 'shirt');
+  redraw();
+}
+function openLook(){
+  if(!state.setupDone) return;
+  const draft=migrateChar(JSON.parse(JSON.stringify(state.player.char||defaultChar())));
+  document.getElementById('lookName').value = state.player.name==='Farmer'?'':state.player.name;
+  const cp=document.getElementById('lookColorPick'); cp.innerHTML='';
+  let selCol=state.player.color||NAME_COLORS[0];
+  NAME_COLORS.forEach(c=>{ const d=document.createElement('div'); d.className='col'+(c===selCol?' sel':''); d.style.background=c; d.onclick=()=>{ selCol=c; cp.querySelectorAll('.col').forEach(x=>x.classList.remove('sel')); d.classList.add('sel'); }; cp.appendChild(d); });
+  buildCharUI(document.getElementById('charOpts'), document.getElementById('charPreview'), draft);
+  document.getElementById('saveLookBtn').onclick=()=>{
+    const nm=document.getElementById('lookName').value.trim()||state.player.name||'Farmer';
+    state.player.name=nm.slice(0,16); state.player.char=draft; state.player.color=selCol;
+    refreshCharURL(); save(); renderHUD();
+    document.getElementById('lookOverlay').classList.remove('show');
+    toast('✅ Looking good!');
+  };
+  show('lookOverlay');
+}
+
+// ============================================================
+//  Missions
+// ============================================================
+function giveSeed(id,n){ state.seedInv[id]=(state.seedInv[id]||0)+n; if(!state.selectedSeed && !(state.bag&&state.bag[id])) state.selectedSeed=id; }
+const MISSIONS = [
+  { id:'fortune', ico:'🌱', name:'Green Thumb Legend', desc:'Harvest 300 crops in total.',
+    prog:s=>({cur:Math.min(s.stats.harvested||0,300),goal:300}),
+    reward:{seeds:{fortune:1}, xp:2500}, rewardText:'💰 Fortune Fruit seed — a SUPER MYTHIC that sells 10,000,000 each! + 2,500 XP' },
+  { id:'baron', ico:'🪙', name:'Coin Baron', desc:'Earn 5,000,000 coins from selling crops.',
+    prog:s=>({cur:Math.min(s.stats.coinsEarned||0,5e6),goal:5e6}),
+    reward:{seeds:{galaxy:1}, coins:250000, xp:5000}, rewardText:'🌌 Galaxy Flower seed + 250,000 🪙 + 5,000 XP' },
+  { id:'traits', ico:'✨', name:'Trait Hunter', desc:'Harvest 25 crops that have a trait (mutation).',
+    prog:s=>({cur:Math.min(s.stats.traitCrops||0,25),goal:25}),
+    reward:{seeds:{diamond:3}, xp:7500}, rewardText:'💎 3× Diamond Rose seeds + 7,500 XP' },
+  { id:'rainbow', ico:'🌈', name:'Rainbow Chaser', desc:'Harvest a 🌈 Rainbow crop (the super-rare ×100 trait!).',
+    prog:s=>({cur:Math.min(s.stats.rainbow||0,1),goal:1}),
+    reward:{seeds:{unicorn:1}, xp:10000}, rewardText:'🦄 Unicorn Bloom seed + 10,000 XP' },
+  { id:'master', ico:'🏆', name:'Master Farmer', desc:'Reach Level 20 AND expand your garden 3 times.',
+    prog:s=>({cur:(levelFromXp(s.xp)>=20?1:0)+((s.expansions||0)>=3?1:0),goal:2}),
+    reward:{seeds:{fortune:2}, coins:1000000, xp:25000}, rewardText:'💰 2× Fortune Fruit seeds + 1,000,000 🪙 + 25,000 XP' },
+];
+function openMissions(){ if(!state.setupDone) return; renderMissions(); show('missionsOverlay'); }
+function fmtMissionProg(m,p){
+  if(m.id==='baron') return `${Math.floor(p.cur).toLocaleString()} / 5,000,000 coins`;
+  if(m.id==='rainbow') return p.cur>=1?'Found it! 🌈':'Not found yet';
+  if(m.id==='master') return `${p.cur} / 2 goals done`;
+  return `${p.cur} / ${p.goal}`;
+}
+function renderMissions(){
+  const el=document.getElementById('missionsList'); el.innerHTML='';
+  MISSIONS.forEach(m=>{
+    const p=m.prog(state); const done=p.cur>=p.goal; const claimed=state.missions[m.id]==='claimed';
+    const pct=Math.min(100, Math.round(p.cur/p.goal*100));
+    const d=document.createElement('div'); d.className='mcard'+(claimed?' done':'');
+    d.innerHTML=`<div class="mtop"><div class="mico">${m.ico}</div><div style="flex:1"><div class="mnm">${m.name}</div><div class="mds">${m.desc}</div></div>${claimed?'<div class="mdone-tag">✓ Claimed</div>':''}</div>
+      <div class="mrw">🎁 ${m.rewardText}</div>
+      <div class="mbar"><i style="width:${pct}%"></i></div>
+      <div class="mprog"><span>${fmtMissionProg(m,p)}</span><span>${pct}%</span></div>
+      ${claimed?'':`<button class="btn mclaim" ${done?'':'disabled'}>${done?'🎁 Claim reward':'Keep going!'}</button>`}`;
+    const btn=d.querySelector('.mclaim'); if(btn) btn.onclick=()=>claimMission(m.id);
+    el.appendChild(d);
+  });
+}
+function claimMission(id){
+  const m=MISSIONS.find(x=>x.id===id); if(!m) return;
+  const p=m.prog(state); if(p.cur<p.goal){ toast('Not finished yet!'); return; }
+  if(state.missions[id]==='claimed') return;
+  state.missions[id]='claimed';
+  const r=m.reward; const parts=[];
+  if(r.coins){ state.coins+=r.coins; parts.push(`${(fmtBig(r.coins)||r.coins)} 🪙`); }
+  if(r.xp){ state.xp+=r.xp; parts.push(`${r.xp} XP`); }
+  if(r.seeds){ for(const sid in r.seeds){ giveSeed(sid,r.seeds[sid]); const s=SEED_MAP[sid]; parts.push(`${r.seeds[sid]}× ${s.emoji} ${s.name}`); } }
+  toast(`🎁 Mission complete: ${m.name}!`);
+  log(`🎯 Completed <b>${m.name}</b> — got ${parts.join(', ')}`);
+  notify(`🎯 Mission complete: <b>${m.name}</b>! 🎁`);
+  save(); renderMissions(); renderHUD(); renderHotbar();
+}
+
 // ---- Setup modal ----
 function buildSetup(){
-  const ap=document.getElementById('avatarPick'); ap.innerHTML='';
-  let selAv=state.player.avatar||AVATARS[0];
-  AVATARS.forEach(a=>{ const d=document.createElement('div'); d.className='av'+(a===selAv?' sel':''); d.textContent=a; d.onclick=()=>{ selAv=a; ap.querySelectorAll('.av').forEach(x=>x.classList.remove('sel')); d.classList.add('sel'); }; ap.appendChild(d); });
+  const draft=migrateChar(JSON.parse(JSON.stringify(state.player.char||defaultChar())));
   const cp=document.getElementById('colorPick'); cp.innerHTML='';
   let selCol=state.player.color||NAME_COLORS[0];
   NAME_COLORS.forEach(c=>{ const d=document.createElement('div'); d.className='col'+(c===selCol?' sel':''); d.style.background=c; d.onclick=()=>{ selCol=c; cp.querySelectorAll('.col').forEach(x=>x.classList.remove('sel')); d.classList.add('sel'); }; cp.appendChild(d); });
   document.getElementById('nameInput').value = state.player.name==='Farmer'?'':state.player.name;
+  buildCharUI(document.getElementById('setupCharOpts'), document.getElementById('setupPreview'), draft);
   document.getElementById('startBtn').onclick=()=>{
     const nm=document.getElementById('nameInput').value.trim()||'Farmer';
-    state.player.name=nm.slice(0,16); state.player.avatar=selAv; state.player.color=selCol;
+    state.player.name=nm.slice(0,16); state.player.char=draft; state.player.color=selCol;
+    refreshCharURL();
     state.setupDone=true;
     document.getElementById('setupOverlay').classList.remove('show');
     renderHUD(); renderHotbar();
@@ -1614,6 +2015,9 @@ document.getElementById('loadSave').onclick=()=>{
   catch(e){ toast('Hmm, that code didn’t work.'); }
 };
 document.getElementById('friendsBtn').onclick=()=>{ if(state.setupDone) openFriends(); };
+document.getElementById('missionsBtn').onclick=openMissions;
+document.getElementById('lookBtn').onclick=openLook;
+document.getElementById('hudName').onclick=openLook;
 document.getElementById('addFriendBtn').onclick=addFriend;
 document.getElementById('fishBtn').onclick=fish;
 document.getElementById('expandBtn').onclick=expandGarden;
@@ -1637,6 +2041,12 @@ if(state.summerUntil && now()>=state.summerUntil) state.summerUntil=0;
 if(typeof state.fishUntil!=='number') state.fishUntil=0;
 if(!state.nextFish) state.nextFish = now()+30*1000;  // first fishing event ~30s in, then every 5 min
 if(state.fishUntil && now()>=state.fishUntil) state.fishUntil=0;
+// new-feature migrations (bag / character / missions / stats)
+if(!state.player.char) state.player.char=defaultChar(); else state.player.char=migrateChar(state.player.char);
+if(!state.bag || typeof state.bag!=='object') state.bag={};
+if(!state.missions || typeof state.missions!=='object') state.missions={};
+if(!state.stats || typeof state.stats!=='object') state.stats={harvested:0,traitCrops:0,rainbow:0,coinsEarned:0};
+refreshCharURL();
 buildSetup();
 if(!state.setupDone) show('setupOverlay');
 renderHUD(); renderHotbar();
