@@ -399,13 +399,13 @@ const SPRINKLER_MS = 10*60*1000;  // sprinklers last 10 minutes
 const WATER_SKIP_MS = 5*60*1000;  // watering can skips 5 minutes per use
 const WATER_USES = 10;            // uses you get when you buy a watering can
 const GEAR = [
-  { id:'wateringcan', name:'Watering Can',   emoji:'💧', cost:30,   stockChance:0.50, kind:'can',
+  { id:'wateringcan', name:'Watering Can',   emoji:'💧', cost:1000,    stockChance:0.50, kind:'can',
     desc:'10 uses — each use skips 5 min of a plant’s growing' },
-  { id:'basic',       name:'Basic Sprinkler',emoji:'🚿', cost:100,  stockChance:0.45, kind:'sprinkler', tier:'basic',  mult:1,
+  { id:'basic',       name:'Basic Sprinkler',emoji:'🚿', cost:100,     stockChance:0.45, kind:'sprinkler', tier:'basic',  mult:1,
     desc:'Plants grow 2× faster for 10 min (works online & offline)' },
-  { id:'good',        name:'Good Sprinkler', emoji:'💦', cost:500,  stockChance:0.25, kind:'sprinkler', tier:'good',   mult:2,
+  { id:'good',        name:'Good Sprinkler', emoji:'💦', cost:100000,  stockChance:0.25, kind:'sprinkler', tier:'good',   mult:2,
     desc:'Fruit becomes ✨ Slippery and sells ×2 for 10 min' },
-  { id:'strong',      name:'Strong Sprinkler',emoji:'🌊', cost:2000, stockChance:0.10, kind:'sprinkler', tier:'strong', mult:4,
+  { id:'strong',      name:'Strong Sprinkler',emoji:'🌊', cost:1000000, stockChance:0.10, kind:'sprinkler', tier:'strong', mult:4,
     desc:'Fruit becomes ✨ Super Slippery and sells ×4 for 10 min' },
 ];
 const GEAR_MAP = Object.fromEntries(GEAR.map(g=>[g.id,g]));
@@ -433,8 +433,8 @@ const SUMMER_FRUITS = ['pineapple','orange','squash','pitcher','elephantear','su
 // the shop re-rolls each fishing event.
 const SUMMER_SHOP = [
   { id:'sunboom',  cost:80000, kind:'seed',     name:'Sun Boom seed',       emoji:'🌻', desc:'★ Rarest! Summer exclusive · sells 60,000 🪙', stockChance:0.035 },
-  { id:'wcan',     cost:800,   kind:'watercan', name:'+10 Watering Can uses',emoji:'💧', desc:'Refill your watering can',                        stockChance:0.50 },
-  { id:'pack',     cost:400,   kind:'pack',     name:'Seed Pack',           emoji:'🎁', desc:'1 random summer fruit (see odds)',                 stockChance:0.60 },
+  { id:'wcan',     cost:10000, kind:'watercan', name:'+10 Watering Can uses',emoji:'💧', desc:'Refill your watering can',                        stockChance:0.50 },
+  { id:'pack',     cost:10000, kind:'pack',     name:'Seed Pack',           emoji:'🎁', desc:'1 random summer fruit (see odds)',                 stockChance:0.60 },
 ];
 
 const AVATARS = ['🧑‍🌾','👩‍🌾','👨‍🌾','🧙','🤠','🧝','👷','🐰','🦊','🐻'];
@@ -843,8 +843,14 @@ function packOdds(){
   let total=0; for(const id of SUMMER_FRUITS) total+=PACK_W[SEED_MAP[id].rarity];
   return SUMMER_FRUITS.map(id=>{ const s=SEED_MAP[id], p=100*PACK_W[s.rarity]/total; return { s, pct: p>=1?p.toFixed(1):p>=0.01?p.toFixed(2):p.toFixed(4) }; });
 }
+let reelClicks=0;
+const REEL_TARGET=5;
 function fish(){
-  if(!fishingActive()){ toast('The fish aren’t biting — wait for the next fishing event! 🎣'); return; }
+  if(!fishingActive()){ reelClicks=0; toast('The fish aren’t biting — wait for the next fishing event! 🎣'); return; }
+  // you must tap 5 times to reel it in
+  reelClicks++;
+  if(reelClicks<REEL_TARGET){ toast(`🎣 Reeling… ${reelClicks}/${REEL_TARGET} — keep tapping!`); renderSummer(); return; }
+  reelClicks=0;
   let total=0; for(const it of FISH_LOOT) total+=it.w;
   let r=Math.random()*total, pick=FISH_LOOT[0];
   for(const it of FISH_LOOT){ r-=it.w; if(r<=0){ pick=it; break; } }
@@ -1038,7 +1044,10 @@ function renderSummer(){
   const fishing=fishingActive();
   document.getElementById('summerLeft').textContent = summerActive()? fmtTime((state.summerUntil-now())/1000) : 'gone';
   const fb=document.getElementById('fishBtn');
-  fb.disabled=!fishing; fb.textContent = fishing? `🎣 Go Fishing! (${fmtTime((state.fishUntil-now())/1000)} left)` : `🎣 Next fishing in ${fmtTime((state.nextFish-now())/1000)}`;
+  fb.disabled=!fishing;
+  fb.textContent = !fishing ? `🎣 Next fishing in ${fmtTime((state.nextFish-now())/1000)}`
+    : reelClicks>0 ? `🎣 Reel! (${reelClicks}/${REEL_TARGET}) — tap!`
+    : `🎣 Go Fishing! (${fmtTime((state.fishUntil-now())/1000)} left)`;
   const shop=document.getElementById('summerShop'); shop.innerHTML='';
   SUMMER_SHOP.forEach((it,i)=>{
     const inStock=state.summerStock[it.id]>0;
