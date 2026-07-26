@@ -729,6 +729,8 @@ function handlePlot(i){
       const tag = traits.length ? traits.map(t=>TRAITS[t].emoji).join('')+' ' : '';
       const bigTrait = traits.some(t=>TRAITS[t].mult>=5);
       if(traits.length>=2 || bigTrait) notify(`${tag}Got a <b>${tag}${s.name}</b> — sells ×${mult}!`);
+      popFx(pl.x, pl.y, s.emoji);                                   // 3D pop of the fruit
+      textFx(pl.x, pl.y-26, `+${take}${mult>1?' ×'+mult:''}`, mult>1?'#ff9f38':'#ffffff');
       if(s.oneTime){
         pl.seedId=null; pl.timers=[]; pl.fruits=0;
         toast(`Harvested ${take}× ${tag}${s.emoji} ${s.name}!`);
@@ -752,6 +754,7 @@ function handlePlot(i){
     const readyAt=now()+s.grow*1000;
     pl.seedId=id; pl.fruits=0;
     pl.timers=Array.from({length:s.cap}, ()=>({at:readyAt, dur:s.grow*1000}));
+    popFx(pl.x, pl.y, '🌱');                                        // planting poof
     const forever = s.oneTime ? 'one-time harvest' : 'regrows forever';
     toast(`Planted ${s.emoji} ${s.name} — ${s.cap} fruit in ${fmtTime(s.grow)}`);
     log(`Planted a <b>${s.name}</b> (holds ${s.cap}, ${forever})`);
@@ -854,21 +857,25 @@ function fish(){
   let total=0; for(const it of FISH_LOOT) total+=it.w;
   let r=Math.random()*total, pick=FISH_LOOT[0];
   for(const it of FISH_LOOT){ r-=it.w; if(r<=0){ pick=it; break; } }
+  const px=state.player.x, py=state.player.y-10;
   if(pick.kind==='nothing'){
     const misses=['🎣 Nothing… the fish got away!','🎣 Ooh, so close! Nothing this time.','🎣 Just an old boot. Nothing!','🎣 The line came back empty. Try again!'];
     toast(misses[Math.floor(Math.random()*misses.length)]);
+    popFx(px,py,'💨');
     return;
   }
   if(pick.kind==='coins'){
     state.summerCoins=(state.summerCoins||0)+pick.amt;
     toast(`🎣 Caught ${pick.amt} 🏖️ Summer Coins!`);
     log(`🎣 Fished up <b>${pick.amt} Summer Coins</b>`);
+    popFx(px,py,'🏖️'); textFx(px,py-24,`+${pick.amt}`,'#ffd27f');
   } else {
     const id = pick.kind==='pack' ? packSeed() : pick.id;
     const s=SEED_MAP[id];
     state.seedInv[id]=(state.seedInv[id]||0)+1;
     if(!state.selectedSeed) state.selectedSeed=id;
     const special = RARITY_ORDER[s.rarity]>=3;
+    popFx(px,py,s.emoji);
     toast(`${special?'🌟 ':'🎣 '}Caught ${s.emoji} ${s.name}${pick.kind==='pack'?' (seed pack)':''}!`);
     log(`🎣 Fished up a <b>${s.emoji} ${s.name}</b>${pick.kind==='pack'?' from a seed pack':''}`);
     if(special) notify(`🌟 Rare catch: <b>${s.emoji} ${s.name}</b>!`);
@@ -1247,6 +1254,9 @@ function draw(){
   // player
   drawPlayer();
 
+  // pop / floating-text effects (world space)
+  drawFx();
+
   ctx.restore();
 
   // weather overlay (screen space)
@@ -1314,9 +1324,17 @@ function drawPlot(pl,i,active){
     const s=SEED_MAP[pl.seedId];
     const ready=pl.fruits||0;
     if(ready>0){
-      const bob=Math.sin(now()/250)*3;
+      const ph=now()/250;
+      const bob=Math.sin(ph)*4;                       // gentle float
+      const pulse=1+Math.sin(ph*1.3)*0.06;            // breathing scale = depth
+      // soft ground shadow (shrinks as the fruit floats up → 3D lift)
+      const sh=1-(bob+4)/16;
+      ctx.fillStyle='rgba(0,0,0,.22)'; ctx.beginPath();
+      ctx.ellipse(pl.x, pl.y+13, 13*sh, 5*sh, 0, 0, Math.PI*2); ctx.fill();
+      ctx.save(); ctx.translate(pl.x, pl.y-2+bob); ctx.scale(pulse,pulse);
       ctx.font='30px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.fillText(s.emoji, pl.x, pl.y-2+bob);
+      ctx.fillText(s.emoji, 0, 0);
+      ctx.restore();
       // gold ready ring
       ctx.strokeStyle='#ffd54a'; ctx.lineWidth=3;
       ctx.beginPath(); ctx.arc(pl.x, pl.y, TS*0.55, 0, Math.PI*2); ctx.stroke();
@@ -1415,6 +1433,31 @@ function drawBuilding(b, active){
   roundRect(b.x+b.w/2-tw/2-8, b.y-34, tw+16, 22, 8, active?'#ffd54a':'rgba(15,30,19,.9)');
   ctx.fillStyle=active?'#2a2000':'#e8f5ea';
   ctx.fillText(b.label, b.x+b.w/2, b.y-23);
+}
+// ---- Pop / floating-text effects (juicy 3D-style animations) ----
+let fx=[];
+function popFx(x,y,emoji){ fx.push({kind:'pop', x, y, emoji, born:performance.now(), life:850}); }
+function textFx(x,y,text,color){ fx.push({kind:'text', x, y, text, color:color||'#ffd54a', born:performance.now(), life:950}); }
+function drawFx(){
+  const t0=performance.now();
+  for(let i=fx.length-1;i>=0;i--){
+    const f=fx[i]; const t=(t0-f.born)/f.life;
+    if(t>=1){ fx.splice(i,1); continue; }
+    ctx.save();
+    if(f.kind==='pop'){
+      const scale = t<0.25 ? (0.3+2.8*t) : (1 + 0.35*Math.sin((t-0.25)*3)); // spring pop
+      const rise = -26*t; const alpha = t<0.7?1:1-(t-0.7)/0.3;
+      ctx.globalAlpha=Math.max(0,alpha); ctx.translate(f.x, f.y+rise); ctx.scale(scale, scale*(0.85+0.15*Math.cos(t*10)));
+      ctx.rotate(Math.sin(t*7)*0.18);
+      ctx.font='32px serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(f.emoji,0,0);
+    } else {
+      const rise=-40*t; ctx.globalAlpha=1-t;
+      ctx.font='800 17px Segoe UI, sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.lineWidth=4; ctx.strokeStyle='rgba(0,0,0,.55)'; ctx.strokeText(f.text, f.x, f.y+rise);
+      ctx.fillStyle=f.color; ctx.fillText(f.text, f.x, f.y+rise);
+    }
+    ctx.restore();
+  }
 }
 function drawPlayer(){
   const p=state.player;
