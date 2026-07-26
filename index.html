@@ -415,7 +415,7 @@
   <div class="modal">
     <span class="x" data-close="missionsOverlay">✕</span>
     <h2>🎯 Missions</h2>
-    <p class="sub">Complete these tough challenges to earn rare seeds and big XP for levels. Rewards can only be claimed once!</p>
+    <p class="sub">Complete these tough challenges to earn big XP for levels — plus a couple of super-rare plants! Rewards can only be claimed once!</p>
     <div id="missionsList"></div>
   </div>
 </div>
@@ -1931,19 +1931,19 @@ function giveSeed(id,n){ state.seedInv[id]=(state.seedInv[id]||0)+n; if(!state.s
 const MISSIONS = [
   { id:'fortune', ico:'🌱', name:'Green Thumb Legend', desc:'Harvest 300 crops in total.',
     prog:s=>({cur:Math.min(s.stats.harvested||0,300),goal:300}),
-    reward:{seeds:{fortune:1}, xp:2500}, rewardText:'💰 Fortune Fruit seed — a SUPER MYTHIC that sells 10,000,000 each! + 2,500 XP' },
+    reward:{xp:5000}, rewardText:'⭐ 5,000 XP for levels' },
   { id:'baron', ico:'🪙', name:'Coin Baron', desc:'Earn 5,000,000 coins from selling crops.',
     prog:s=>({cur:Math.min(s.stats.coinsEarned||0,5e6),goal:5e6}),
     reward:{seeds:{galaxy:1}, coins:250000, xp:5000}, rewardText:'🌌 Galaxy Flower seed + 250,000 🪙 + 5,000 XP' },
   { id:'traits', ico:'✨', name:'Trait Hunter', desc:'Harvest 25 crops that have a trait (mutation).',
     prog:s=>({cur:Math.min(s.stats.traitCrops||0,25),goal:25}),
-    reward:{seeds:{diamond:3}, xp:7500}, rewardText:'💎 3× Diamond Rose seeds + 7,500 XP' },
+    reward:{xp:10000}, rewardText:'⭐ 10,000 XP for levels' },
   { id:'rainbow', ico:'🌈', name:'Rainbow Chaser', desc:'Harvest a 🌈 Rainbow crop (the super-rare ×100 trait!).',
     prog:s=>({cur:Math.min(s.stats.rainbow||0,1),goal:1}),
-    reward:{seeds:{unicorn:1}, xp:10000}, rewardText:'🦄 Unicorn Bloom seed + 10,000 XP' },
+    reward:{xp:15000}, rewardText:'⭐ 15,000 XP for levels' },
   { id:'master', ico:'🏆', name:'Master Farmer', desc:'Reach Level 20 AND expand your garden 3 times.',
     prog:s=>({cur:(levelFromXp(s.xp)>=20?1:0)+((s.expansions||0)>=3?1:0),goal:2}),
-    reward:{seeds:{fortune:2}, coins:1000000, xp:25000}, rewardText:'💰 2× Fortune Fruit seeds + 1,000,000 🪙 + 25,000 XP' },
+    reward:{coins:1000000, xp:30000}, rewardText:'⭐ 30,000 XP for levels + 1,000,000 🪙' },
 ];
 // 🌺 GRAND challenge — finish all 5 missions within one week to earn the Soomer Bloom
 const BLOOM_DUR = 7*24*60*60*1000;   // one week
