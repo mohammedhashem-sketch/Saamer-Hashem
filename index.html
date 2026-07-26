@@ -460,7 +460,7 @@ const SEEDS = [
   // 🎯 Mission reward only — a super mythic that pays 10,000,000 coins per fruit
   { id:'fortune',   name:'Fortune Fruit', emoji:'💰', rarity:'supermythic', cost:0, grow:7200, sell:10000000, stockChance:0, cap:3 },
   // 🌺 Grand-challenge reward — the rarest plant, only from finishing every mission
-  { id:'summerbloom', name:'Summer Bloom', emoji:'🌺', rarity:'supermythic', cost:0, grow:7200, sell:50000000, stockChance:0, cap:3 },
+  { id:'summerbloom', name:'Soomer Bloom', emoji:'🌺', rarity:'supermythic', cost:0, grow:7200, sell:50000000, stockChance:0, cap:3 },
   // 🏖️ Summer seeds — only from the summer stand (fishing / summer shop), never in the normal shop
   { id:'pineapple',   name:'Pineapple',       emoji:'🍍', rarity:'common',     cost:0, grow:300,  sell:600,    stockChance:0, cap:4 },
   { id:'orange',      name:'Orange',          emoji:'🍊', rarity:'rare',       cost:0, grow:600,  sell:1500,   stockChance:0, cap:5 },
@@ -1945,12 +1945,12 @@ const MISSIONS = [
     prog:s=>({cur:(levelFromXp(s.xp)>=20?1:0)+((s.expansions||0)>=3?1:0),goal:2}),
     reward:{seeds:{fortune:2}, coins:1000000, xp:25000}, rewardText:'💰 2× Fortune Fruit seeds + 1,000,000 🪙 + 25,000 XP' },
 ];
-// 🌺 GRAND challenge — finish all 5 missions within one week to earn the Summer Bloom
+// 🌺 GRAND challenge — finish all 5 missions within one week to earn the Soomer Bloom
 const BLOOM_DUR = 7*24*60*60*1000;   // one week
-const BLOOM = { id:'summerbloom', ico:'🌺', name:'Summer Bloom Challenge',
-  desc:'Complete ALL 5 missions above to earn the Summer Bloom — the rarest plant of all. But hurry: it only blooms for one week!',
+const BLOOM = { id:'summerbloom', ico:'🌺', name:'Soomer Bloom Challenge',
+  desc:'Complete ALL 5 missions above to earn the Soomer Bloom — the rarest plant of all. But hurry: it only blooms for one week!',
   reward:{ seeds:{summerbloom:1}, xp:50000 },
-  rewardText:'🌺 Summer Bloom seed — the rarest plant, sells 50,000,000 each! + 50,000 XP' };
+  rewardText:'🌺 Soomer Bloom seed — the rarest plant, sells 50,000,000 each! + 50,000 XP' };
 function bloomClaimedCount(){ return MISSIONS.filter(m=>state.missions[m.id]==='claimed').length; }
 function bloomExpired(){ return state.missions.summerbloom!=='claimed' && now()>=(state.bloomDeadline||0); }
 function openMissions(){ if(!state.setupDone) return; renderMissions(); show('missionsOverlay'); }
@@ -1973,7 +1973,7 @@ function bloomCard(){
   else timeLine=`⏳ Expires in <b id="bloomLeft">${fmtTime(left)}</b>`;
   const btn = claimed ? '' :
     (expired ? '<button class="btn mclaim" disabled>😢 Challenge expired</button>'
-             : `<button class="btn mclaim" id="claimBloom" ${done?'':'disabled'}>${done?'🌺 Claim Summer Bloom!':'Finish all 5 missions'}</button>`);
+             : `<button class="btn mclaim" id="claimBloom" ${done?'':'disabled'}>${done?'🌺 Claim Soomer Bloom!':'Finish all 5 missions'}</button>`);
   return `<div class="mcard bloom${claimed?' done':''}" style="border-color:#ff4d7d;background:linear-gradient(135deg,rgba(255,77,125,.16),rgba(181,108,255,.14))">
     <div class="mtop"><div class="mico">🌺</div><div style="flex:1"><div class="mnm">${BLOOM.name}</div><div class="mds">${BLOOM.desc}</div></div></div>
     <div class="mrw">🎁 ${BLOOM.rewardText}</div>
@@ -2001,13 +2001,13 @@ function renderMissions(){
 }
 function claimBloom(){
   if(state.missions.summerbloom==='claimed') return;
-  if(bloomExpired()){ toast('😢 The Summer Bloom challenge has expired.'); return; }
+  if(bloomExpired()){ toast('😢 The Soomer Bloom challenge has expired.'); return; }
   if(bloomClaimedCount()<MISSIONS.length){ toast('Finish all 5 missions first!'); return; }
   state.missions.summerbloom='claimed';
   giveSeed('summerbloom',1); state.xp+=BLOOM.reward.xp;
-  toast('🌺 You earned the Summer Bloom!');
-  log(`🌺 Completed the <b>Summer Bloom Challenge</b> — got 1× 🌺 Summer Bloom + ${BLOOM.reward.xp} XP`);
-  notify('🌺 <b>Summer Bloom Challenge complete!</b> The rarest plant is yours! 🎉');
+  toast('🌺 You earned the Soomer Bloom!');
+  log(`🌺 Completed the <b>Soomer Bloom Challenge</b> — got 1× 🌺 Soomer Bloom + ${BLOOM.reward.xp} XP`);
+  notify('🌺 <b>Soomer Bloom Challenge complete!</b> The rarest plant is yours! 🎉');
   save(); renderMissions(); renderHUD(); renderHotbar();
 }
 function claimMission(id){
@@ -2092,7 +2092,7 @@ if(!state.player.char) state.player.char=defaultChar(); else state.player.char=m
 if(!state.bag || typeof state.bag!=='object') state.bag={};
 if(!state.missions || typeof state.missions!=='object') state.missions={};
 if(!state.stats || typeof state.stats!=='object') state.stats={harvested:0,traitCrops:0,rainbow:0,coinsEarned:0};
-if(typeof state.bloomDeadline!=='number' || !state.bloomDeadline) state.bloomDeadline = now()+BLOOM_DUR;  // 1-week Summer Bloom challenge
+if(typeof state.bloomDeadline!=='number' || !state.bloomDeadline) state.bloomDeadline = now()+BLOOM_DUR;  // 1-week Soomer Bloom challenge
 refreshCharURL();
 buildSetup();
 if(!state.setupDone) show('setupOverlay');
@@ -2109,7 +2109,7 @@ setInterval(()=>{
   const rem=Math.max(0,Math.ceil((RESTOCK_MS-(now()-state.lastRestock))/1000));
   const mm=Math.floor(rem/60), ss=String(rem%60).padStart(2,'0');
   const el=document.getElementById('restockIn'); if(el) el.textContent=`${mm}:${ss}`;
-  // live Summer Bloom challenge countdown (while the missions screen is open)
+  // live Soomer Bloom challenge countdown (while the missions screen is open)
   const bl=document.getElementById('bloomLeft');
   if(bl){ if(bloomExpired()) renderMissions(); else bl.textContent=fmtTime((state.bloomDeadline-now())/1000); }
   // live sprinkler HUD chip
