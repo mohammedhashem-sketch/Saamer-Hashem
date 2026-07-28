@@ -75,6 +75,8 @@
   .slot.empty-hot{color:var(--muted);font-size:11px;min-width:120px;display:flex;align-items:center;justify-content:center}
   .slot.tool{border-color:#4a7fa8;background:rgba(29,55,72,.9)}
   .slot.tool.sel{border-color:var(--gold)}
+  .slot.tool.carry{border-color:#5be08a;box-shadow:0 0 0 1px #5be08a inset;animation:carrypulse 1s ease-in-out infinite}
+  @keyframes carrypulse{0%,100%{box-shadow:0 0 0 1px #5be08a inset}50%{box-shadow:0 0 0 2px #5be08a inset,0 0 10px rgba(91,224,138,.6)}}
 
   /* Mobile dpad + action */
   #touch{position:fixed;inset:0;z-index:9;pointer-events:none}
@@ -719,7 +721,8 @@ let state = load() || {
   gearShop:{},        // gear stock (itemId -> qty)
   lastRestock:Date.now(),
   selectedSeed:null,
-  tool:'none',        // 'none' | 'shovel' | 'can'
+  tool:'none',        // 'none' | 'shovel' | 'can' | 'trowel'
+  carrying:null,      // a plant held by the trowel, waiting to be replanted
   friends:[],         // [{name, avatar, seeds:[6 seedIds]}] — view-only gardens
   wateringUses:0,     // watering-can charges left
   sprinkler:null,     // {tier, mult, until}  active garden sprinkler
@@ -927,6 +930,29 @@ function handlePlot(i){
     toast(`💧 Watered — skipped 5 min! (${state.wateringUses} uses left)`);
     log(`Watered a <b>${SEED_MAP[pl.seedId].name}</b> (skipped 5m)`);
     renderHUD(); renderHotbar(); return;
+  }
+  // --- Trowel: pick up a plant, then drop it on an empty plot ---
+  if(state.tool==='trowel'){
+    if(state.carrying){
+      if(pl.seedId){ toast('That plot is taken — drop it on an empty plot.'); return; }
+      pl.seedId=state.carrying.seedId; pl.fruits=state.carrying.fruits||0; pl.timers=state.carrying.timers||[];
+      const s=SEED_MAP[pl.seedId];
+      state.carrying=null;
+      updatePlots();
+      popFx(pl.x, pl.y, s.emoji);
+      toast(`🌱 Moved ${s.emoji} ${s.name} here!`);
+      log(`Moved a <b>${s.name}</b> to a new plot with the trowel`);
+      renderHUD(); renderHotbar(); return;
+    } else {
+      if(!pl.seedId){ toast('Pick up a plant first — tap a planted plot with the trowel.'); return; }
+      const s=SEED_MAP[pl.seedId];
+      state.carrying={ seedId:pl.seedId, fruits:pl.fruits||0, timers:(pl.timers||[]).map(t=>({at:t.at,dur:t.dur})) };
+      pl.seedId=null; pl.fruits=0; pl.timers=[];
+      popFx(pl.x, pl.y, '🌱');
+      toast(`🪏 Picked up ${s.emoji} ${s.name} — tap an empty plot to place it!`);
+      log(`Picked up a <b>${s.name}</b> with the trowel`);
+      renderHUD(); renderHotbar(); return;
+    }
   }
 
   if(pl.seedId){
@@ -1419,6 +1445,13 @@ function renderHotbar(){
   shovel.innerHTML=`<div class="e">🪏</div><div class="c">dig</div>`;
   shovel.onclick=()=>{ state.tool = state.tool==='shovel'?'none':'shovel'; renderHotbar(); };
   hb.appendChild(shovel);
+  // Trowel: move a plant to another plot (pick up, then drop on an empty plot)
+  const trowel=document.createElement('div');
+  trowel.className='slot tool'+(state.tool==='trowel'?' sel':'')+(state.carrying?' carry':'');
+  const carEmoji = state.carrying ? SEED_MAP[state.carrying.seedId].emoji : '🪴';
+  trowel.innerHTML=`<div class="e">${carEmoji}</div><div class="c">${state.carrying?'place':'move'}</div>`;
+  trowel.onclick=()=>{ state.tool = state.tool==='trowel'?'none':'trowel'; renderHotbar(); };
+  hb.appendChild(trowel);
   if(state.wateringUses>0){
     const can=document.createElement('div');
     can.className='slot tool'+(state.tool==='can'?' sel':'');
@@ -1724,7 +1757,9 @@ function updatePrompt(near){
     const pl=state.plots[near.index];
     if(pl.seedId){
       const s=SEED_MAP[pl.seedId];
-      if(state.tool==='shovel'){
+      if(state.tool==='trowel'){
+        txt = state.carrying ? `<span class="key">E</span> This plot is taken — place on an empty one` : `<span class="key">E</span> 🪴 Pick up <b>${s.name}</b> to move it`;
+      } else if(state.tool==='shovel'){
         txt = `<span class="key">E</span> 🪏 Dig up <b>${s.name}</b>`;
       } else if(state.tool==='can'){
         txt = `<span class="key">E</span> 💧 Water <b>${s.name}</b> (skip 5m · ${state.wateringUses} left)`;
@@ -1734,6 +1769,8 @@ function updatePrompt(near){
         const next=pl.timers.reduce((m,t)=>Math.min(m,t.at), Infinity);
         txt = `${s.emoji} ${s.name} — next fruit in ${fmtTime((next-now())/1000)}`;
       }
+    } else if(state.tool==='trowel'){
+      txt = state.carrying ? `<span class="key">E</span> 🪴 Place <b>${SEED_MAP[state.carrying.seedId].name}</b> here` : `🪴 Trowel — tap a planted plot to pick it up`;
     } else if(state.tool!=='none'){
       txt = `Empty plot — pick a seed to plant here`;
     } else {
@@ -1794,7 +1831,7 @@ function importCode(code){
   if(typeof d.expansions!=='number') d.expansions=0;
   d.plots = Array.from({length:plotCapacity(d.expansions)}, (_,i)=>normalizePlot(PLOT_CELLS[i], d.plots && d.plots[i]));
   if(!d.gearShop || !Object.keys(d.gearShop).length){ d.gearShop={}; }
-  if(d.tool!=='shovel' && d.tool!=='can') d.tool='none';
+  if(d.tool!=='shovel' && d.tool!=='can' && d.tool!=='trowel') d.tool='none';
   if(typeof d.wateringUses!=='number') d.wateringUses=0;
   if(!Array.isArray(d.friends)) d.friends=[];
   if(typeof d.summerCoins!=='number') d.summerCoins=0;
@@ -2074,7 +2111,8 @@ document.getElementById('resetBtn').onclick=()=>{ if(confirm('Reset all progress
 // init
 if(!state.shop || Object.keys(state.shop).length===0) rollStock();
 if(!state.gearShop || Object.keys(state.gearShop).length===0) rollGearStock();
-if(state.tool!=='shovel' && state.tool!=='can') state.tool='none';
+if(state.tool!=='shovel' && state.tool!=='can' && state.tool!=='trowel') state.tool='none';
+if(state.carrying===undefined) state.carrying=null;
 if(typeof state.wateringUses!=='number') state.wateringUses=0;
 if(!Array.isArray(state.friends)) state.friends=[];
 if(!state.nextEventCheck) state.nextEventCheck = now()+90*1000;  // first event soon, then every 10 min
