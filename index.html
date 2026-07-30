@@ -939,7 +939,7 @@ function handlePlot(i){
       const s=SEED_MAP[pl.seedId];
       state.carrying=null;
       updatePlots();
-      popFx(pl.x, pl.y, s.emoji);
+      popCrop(pl.x, pl.y, s.id);
       toast(`🌱 Moved ${s.emoji} ${s.name} here!`);
       log(`Moved a <b>${s.name}</b> to a new plot with the trowel`);
       renderHUD(); renderHotbar(); return;
@@ -972,7 +972,7 @@ function handlePlot(i){
       const tag = traits.length ? traits.map(t=>TRAITS[t].emoji).join('')+' ' : '';
       const bigTrait = traits.some(t=>TRAITS[t].mult>=5);
       if(traits.length>=2 || bigTrait) notify(`${tag}Got a <b>${tag}${s.name}</b> — sells ×${mult}!`);
-      popFx(pl.x, pl.y, s.emoji);                                   // 3D pop of the fruit
+      popCrop(pl.x, pl.y, s.id);                                    // 3D pop of the drawn fruit
       textFx(pl.x, pl.y-26, `+${take}${mult>1?' ×'+mult:''}`, mult>1?'#ff9f38':'#ffffff');
       if(s.oneTime){
         pl.seedId=null; pl.timers=[]; pl.fruits=0;
@@ -1118,7 +1118,7 @@ function fish(){
     state.seedInv[id]=(state.seedInv[id]||0)+1;
     if(!state.selectedSeed) state.selectedSeed=id;
     const special = RARITY_ORDER[s.rarity]>=3;
-    popFx(px,py,s.emoji);
+    popCrop(px,py,s.id);
     toast(`${special?'🌟 ':'🎣 '}Caught ${s.emoji} ${s.name}${pick.kind==='pack'?' (seed pack)':''}!`);
     log(`🎣 Fished up a <b>${s.emoji} ${s.name}</b>${pick.kind==='pack'?' from a seed pack':''}`);
     if(special) notify(`🌟 Rare catch: <b>${s.emoji} ${s.name}</b>!`);
@@ -1373,7 +1373,7 @@ function renderShop(){
     const chance = pct>=1?pct.toFixed(0)+'%':pct>=0.1?pct.toFixed(1)+'%':pct.toFixed(2)+'%';
     const d=document.createElement('div');
     d.className='row'+(inStock?'':' out');
-    d.innerHTML=`<div class="ico">${s.emoji}</div>
+    d.innerHTML=`<div class="ico">${cropImg(s.id,30)}</div>
       <div class="info">
         <div class="nm">${s.name} <span class="rar ${s.rarity}">${s.rarity}</span></div>
         <div class="sub2">Matures ${fmtTime(s.grow)} · holds ×${s.cap}, regrows 5m · sells ${s.sell} 🪙 · stock ${chance}</div>
@@ -1395,7 +1395,7 @@ function renderMarket(){
     const c=parseCrop(key), n=state.cropInv[key], each=cropValue(key);
     const traitTxt = c.traits && c.traits.length ? c.traits.map(t=>TRAITS[t].label).join(' + ')+` (×${c.mult})` : c.seed.rarity;
     const d=document.createElement('div'); d.className='row';
-    d.innerHTML=`<div class="ico">${c.seed.emoji}</div>
+    d.innerHTML=`<div class="ico">${cropImg(c.seed.id,30)}</div>
       <div class="info">
         <div class="nm">${cropLabel(key)} <span class="rar ${c.traits&&c.traits.length?'exclusive':c.seed.rarity}">${traitTxt}</span></div>
         <div class="sub2">×${n} in basket · ${each} 🪙 each</div>
@@ -1448,8 +1448,8 @@ function renderHotbar(){
   // Trowel: move a plant to another plot (pick up, then drop on an empty plot)
   const trowel=document.createElement('div');
   trowel.className='slot tool'+(state.tool==='trowel'?' sel':'')+(state.carrying?' carry':'');
-  const carEmoji = state.carrying ? SEED_MAP[state.carrying.seedId].emoji : '🪴';
-  trowel.innerHTML=`<div class="e">${carEmoji}</div><div class="c">${state.carrying?'place':'move'}</div>`;
+  const carIcon = state.carrying ? cropImg(state.carrying.seedId,24) : '🪴';
+  trowel.innerHTML=`<div class="e">${carIcon}</div><div class="c">${state.carrying?'place':'move'}</div>`;
   trowel.onclick=()=>{ state.tool = state.tool==='trowel'?'none':'trowel'; renderHotbar(); };
   hb.appendChild(trowel);
   if(state.wateringUses>0){
@@ -1466,7 +1466,7 @@ function renderHotbar(){
     const s=SEED_MAP[id];
     const d=document.createElement('div');
     d.className='slot'+(state.tool==='none'&&state.selectedSeed===id?' sel':'');
-    d.innerHTML=`${i<9?`<span class="k">${i+1}</span>`:''}<div class="e">${s.emoji}</div><div class="c">×${state.seedInv[id]}</div>`;
+    d.innerHTML=`${i<9?`<span class="k">${i+1}</span>`:''}<div class="e">${cropImg(id,24)}</div><div class="c">×${state.seedInv[id]}</div>`;
     d.onclick=()=>{ state.selectedSeed=id; state.tool='none'; renderHotbar(); };
     hb.appendChild(d);
   });
@@ -1580,6 +1580,121 @@ function drawWeather(){
   }
 }
 
+// ============================================================
+//  Hand-drawn crop art (canvas shapes instead of emojis)
+// ============================================================
+function _leaf(g,x,y,len,wid,ang,col){ g.save(); g.translate(x,y); g.rotate(ang); g.fillStyle=col; g.beginPath(); g.moveTo(0,0); g.bezierCurveTo(wid,-len*0.3,wid*0.6,-len*0.95,0,-len); g.bezierCurveTo(-wid*0.6,-len*0.95,-wid,-len*0.3,0,0); g.closePath(); g.fill(); g.restore(); }
+function _circ(g,x,y,r,col){ g.fillStyle=col; g.beginPath(); g.arc(x,y,r,0,7); g.fill(); }
+function _shine(g,x,y,r){ g.fillStyle='rgba(255,255,255,.5)'; g.beginPath(); g.ellipse(x,y,r*0.4,r*0.24,-0.6,0,7); g.fill(); }
+function _tri(g,x,y,w,h,col){ g.fillStyle=col; g.beginPath(); g.moveTo(x,y); g.lineTo(x-w,y-h); g.lineTo(x+w,y-h); g.closePath(); g.fill(); }
+// Draw crop `id` centred at (cx,cy). U=scale (1 ≈ 30px tall). ph animates a gentle sway.
+function drawCrop(g, id, cx, cy, U, ph){
+  const sway=Math.sin(ph||0)*0.05;
+  g.save(); g.translate(cx,cy); g.rotate(sway); g.lineJoin='round'; g.lineCap='round';
+  switch(id){
+    case 'carrot':
+      _tri(g,0,14*U,7*U,16*U,'#ff8b2a');
+      g.strokeStyle='rgba(120,50,0,.3)'; g.lineWidth=U; for(let i=-1;i<2;i++){ g.beginPath(); g.moveTo(i*3*U,0); g.lineTo(i*1.5*U,10*U); g.stroke(); }
+      _leaf(g,-3*U,-2*U,12*U,4*U,-0.3,'#3f9a4a'); _leaf(g,0,-3*U,14*U,4*U,0,'#4bb356'); _leaf(g,3*U,-2*U,12*U,4*U,0.3,'#3f9a4a'); break;
+    case 'potato':
+      _circ(g,0,2*U,0,''); g.fillStyle='#c99a5b'; g.beginPath(); g.ellipse(0,2*U,11*U,8*U,0.2,0,7); g.fill();
+      _circ(g,-4*U,-1*U,1.2*U,'#8a6a3a'); _circ(g,3*U,3*U,1.2*U,'#8a6a3a'); _circ(g,0,5*U,U,'#8a6a3a'); break;
+    case 'wheat':
+      g.strokeStyle='#b78a2a'; g.lineWidth=2*U; g.beginPath(); g.moveTo(0,15*U); g.lineTo(0,-9*U); g.stroke();
+      for(let i=0;i<5;i++){ g.save(); g.translate(0,-9*U+i*4.5*U); g.fillStyle='#e0b84a'; g.beginPath(); g.ellipse(-3*U,2*U,2.2*U,4*U,0.5,0,7); g.ellipse(3*U,2*U,2.2*U,4*U,-0.5,0,7); g.fill(); g.restore(); } break;
+    case 'strawberry':
+      g.fillStyle='#e6394f'; g.beginPath(); g.moveTo(-9*U,-4*U); g.quadraticCurveTo(-11*U,8*U,0,13*U); g.quadraticCurveTo(11*U,8*U,9*U,-4*U); g.quadraticCurveTo(0,-8*U,-9*U,-4*U); g.closePath(); g.fill();
+      for(let r=0;r<3;r++)for(let c=-2;c<3;c++) _circ(g,c*3.2*U,-1*U+r*4*U,0.8*U,'#ffe08a');
+      for(let i=-2;i<3;i++) _tri(g,i*3*U,-4*U,2*U,5*U,'#4bb356'); break;
+    case 'tomato':
+      _circ(g,0,3*U,11*U,'#e63b2e'); _shine(g,-4*U,-2*U,10*U);
+      for(let i=0;i<5;i++){ g.save(); g.translate(0,-6*U); g.rotate(i*2*Math.PI/5); _tri(g,0,0,2*U,5*U,'#3f9a4a'); g.restore(); } break;
+    case 'corn':
+      g.fillStyle='#f2c94c'; g.beginPath(); g.ellipse(0,2*U,7*U,12*U,0,0,7); g.fill();
+      for(let r=-2;r<3;r++)for(let c=-1;c<2;c++) _circ(g,c*4*U,r*4*U+2*U,1.5*U,'#e0b21c');
+      _leaf(g,-6*U,6*U,13*U,4*U,0.5,'#5aa84a'); _leaf(g,6*U,6*U,13*U,4*U,-0.5,'#5aa84a'); break;
+    case 'watermelon':
+      _circ(g,0,2*U,12*U,'#4aa63f');
+      g.strokeStyle='#2f7a34'; g.lineWidth=2*U; for(const dx of [3,7,11]){ g.beginPath(); g.ellipse(0,2*U,dx*U,12*U,0,0,7); g.stroke(); }
+      _shine(g,-4*U,-3*U,10*U); break;
+    case 'grapes':
+      for(let row=0;row<4;row++){ const cnt=4-row; for(let c=0;c<cnt;c++){ const gx=(c-(cnt-1)/2)*5*U, gy=(-3+row*4)*U; _circ(g,gx,gy,3*U,'#8a4fc0'); _circ(g,gx-0.8*U,gy-0.8*U,U,'rgba(255,255,255,.4)'); } }
+      g.strokeStyle='#5a3210'; g.lineWidth=2*U; g.beginPath(); g.moveTo(0,-7*U); g.lineTo(0,-11*U); g.stroke(); _leaf(g,2*U,-9*U,7*U,5*U,0.6,'#4bb356'); break;
+    case 'pumpkin':
+      g.fillStyle='#ef8a1e'; g.beginPath(); g.ellipse(0,3*U,13*U,10*U,0,0,7); g.fill();
+      g.strokeStyle='rgba(150,70,10,.4)'; g.lineWidth=1.5*U; for(let i=-1;i<2;i++){ g.beginPath(); g.ellipse(i*5*U,3*U,4*U,10*U,0,0,7); g.stroke(); }
+      g.fillStyle='#5a3210'; g.fillRect(-1.5*U,-9*U,3*U,4*U); break;
+    case 'goldapple':
+      g.fillStyle='#c9e04a'; g.beginPath(); g.arc(-4*U,3*U,8*U,0,7); g.arc(4*U,3*U,8*U,0,7); g.fill();
+      g.fillStyle='rgba(255,213,74,.4)'; g.beginPath(); g.arc(-4*U,3*U,8*U,0,7); g.arc(4*U,3*U,8*U,0,7); g.fill(); _shine(g,-3*U,-1*U,9*U);
+      g.strokeStyle='#5a3210'; g.lineWidth=2*U; g.beginPath(); g.moveTo(0,-4*U); g.lineTo(0,-9*U); g.stroke(); _leaf(g,2*U,-8*U,7*U,4*U,0.7,'#3f9a4a'); break;
+    case 'dragonfruit':
+      g.fillStyle='#e84f8a'; g.beginPath(); g.ellipse(0,2*U,9*U,12*U,0,0,7); g.fill();
+      for(let i=0;i<7;i++){ const a=i/7*7; g.save(); g.translate(Math.cos(a)*8*U, Math.sin(a)*11*U+2*U); g.rotate(a+1.6); _tri(g,0,0,2*U,5*U,'#6bd06b'); g.restore(); } break;
+    case 'celestial':
+      for(let ring=3;ring>=1;ring--){ const rr=ring*4*U, col=['#ff9bbf','#ff6fa3','#e63b7a'][ring-1], n=ring*3; for(let i=0;i<n;i++){ g.save(); g.rotate(i*2*Math.PI/n+ring*0.4); g.fillStyle=col; g.beginPath(); g.ellipse(0,-rr,rr*0.5,rr*0.7,0,0,7); g.fill(); g.restore(); } }
+      _circ(g,0,0,2*U,'#ffd54a'); break;
+    case 'phoenix': {
+      const cols=['#ffd54a','#ff8b2a','#ff4d2a']; for(let k=0;k<3;k++){ g.fillStyle=cols[k]; const sc=1-k*0.28; g.beginPath(); g.moveTo(0,12*U*sc); g.quadraticCurveTo(-9*U*sc,0,0,-13*U*sc); g.quadraticCurveTo(9*U*sc,0,0,12*U*sc); g.closePath(); g.fill(); } break; }
+    case 'galaxy':
+      for(let i=0;i<6;i++){ g.save(); g.rotate(i*2*Math.PI/6); g.fillStyle='#6a5acd'; g.beginPath(); g.ellipse(0,-11*U,5*U,10*U,0,0,7); g.fill(); g.fillStyle='#4aa3ff'; g.beginPath(); g.ellipse(0,-13*U,2.5*U,5*U,0,0,7); g.fill(); g.restore(); }
+      g.fillStyle='#ffd54a'; drawStar(g,0,0,5*U,5); break;
+    case 'diamond':
+      g.fillStyle='#7fe6ff'; g.beginPath(); g.moveTo(0,-11*U); g.lineTo(9*U,-2*U); g.lineTo(0,13*U); g.lineTo(-9*U,-2*U); g.closePath(); g.fill();
+      g.strokeStyle='rgba(255,255,255,.7)'; g.lineWidth=U; g.beginPath(); g.moveTo(-9*U,-2*U); g.lineTo(9*U,-2*U); g.moveTo(0,-11*U); g.lineTo(0,13*U); g.moveTo(-4*U,-2*U); g.lineTo(0,-11*U); g.lineTo(4*U,-2*U); g.stroke(); _shine(g,-3*U,-4*U,6*U); break;
+    case 'unicorn': {
+      const rc=['#ff4d7d','#ff9f38','#ffd54a','#5be08a','#4aa3ff','#b56cff']; for(let i=0;i<6;i++){ g.save(); g.rotate(i*2*Math.PI/6); g.fillStyle=rc[i]; g.beginPath(); g.ellipse(0,-10*U,5*U,9*U,0,0,7); g.fill(); g.restore(); } _circ(g,0,0,3.5*U,'#fff'); break; }
+    case 'fortune':
+      _circ(g,0,2*U,11*U,'#ffcf3a'); _circ(g,0,2*U,8*U,'#ffe27a'); g.fillStyle='#c9962a'; drawStar(g,0,2*U,5*U,5); _shine(g,-3*U,-2*U,10*U); break;
+    case 'summerbloom':
+      for(let i=0;i<5;i++){ g.save(); g.rotate(i*2*Math.PI/5); g.fillStyle='#ff5d8f'; g.beginPath(); g.ellipse(0,-9*U,6*U,10*U,0,0,7); g.fill(); g.fillStyle='rgba(255,255,255,.25)'; g.beginPath(); g.ellipse(0,-11*U,3*U,4*U,0,0,7); g.fill(); g.restore(); }
+      _circ(g,0,0,4*U,'#ffd54a'); g.strokeStyle='#ffb0c8'; g.lineWidth=1.5*U; g.beginPath(); g.moveTo(0,0); g.lineTo(0,-8*U); g.stroke(); _circ(g,0,-8*U,1.5*U,'#ffe08a'); break;
+    case 'pineapple':
+      g.fillStyle='#f2c033'; g.beginPath(); g.ellipse(0,4*U,8*U,11*U,0,0,7); g.fill();
+      g.strokeStyle='rgba(150,100,10,.4)'; g.lineWidth=U; for(let i=-2;i<3;i++){ g.beginPath(); g.moveTo(-8*U,i*3*U+4*U); g.lineTo(8*U,i*3*U+2*U); g.stroke(); g.beginPath(); g.moveTo(i*3*U,-4*U); g.lineTo(i*3*U+U,14*U); g.stroke(); }
+      for(let i=-2;i<3;i++){ g.save(); g.translate(i*2.5*U,-6*U); g.rotate(i*0.25); _tri(g,0,0,2*U,8*U,'#4bb356'); g.restore(); } break;
+    case 'orange':
+      _circ(g,0,3*U,11*U,'#ff9f2a'); for(let i=0;i<12;i++){ const a=i/12*7; _circ(g,Math.cos(a)*8*U,Math.sin(a)*8*U+3*U,0.7*U,'rgba(180,90,0,.3)'); } _shine(g,-4*U,-1*U,9*U); _leaf(g,3*U,-6*U,7*U,4*U,0.5,'#3f9a4a'); break;
+    case 'squash':
+      g.fillStyle='#e6c84a'; g.beginPath(); g.ellipse(0,7*U,7*U,7*U,0,0,7); g.ellipse(0,-4*U,4*U,6*U,0,0,7); g.fill();
+      g.strokeStyle='rgba(150,120,20,.4)'; g.lineWidth=U; g.beginPath(); g.moveTo(0,-9*U); g.lineTo(0,13*U); g.stroke(); g.fillStyle='#5a7a2a'; g.fillRect(-1.5*U,-11*U,3*U,4*U); break;
+    case 'pitcher':
+      g.fillStyle='#5aa84a'; g.beginPath(); g.moveTo(-6*U,-6*U); g.lineTo(-8*U,12*U); g.quadraticCurveTo(0,16*U,8*U,12*U); g.lineTo(6*U,-6*U); g.closePath(); g.fill();
+      g.fillStyle='#c0392b'; g.beginPath(); g.ellipse(0,-6*U,7*U,3*U,0,0,7); g.fill(); g.fillStyle='#7a2f22'; g.beginPath(); g.ellipse(0,-9*U,5*U,4*U,0.2,0,7); g.fill();
+      for(let i=0;i<5;i++) _circ(g,(-4+i*2)*U,(i%2)*4*U+2*U,U,'rgba(120,30,20,.5)'); break;
+    case 'elephantear':
+      g.fillStyle='#3f8a4a'; g.beginPath(); g.moveTo(0,14*U); g.bezierCurveTo(-16*U,4*U,-13*U,-14*U,0,-10*U); g.bezierCurveTo(13*U,-14*U,16*U,4*U,0,14*U); g.closePath(); g.fill();
+      g.strokeStyle='rgba(20,60,25,.5)'; g.lineWidth=1.4*U; g.beginPath(); g.moveTo(0,13*U); g.lineTo(0,-8*U); g.stroke();
+      for(let i=1;i<=3;i++){ g.beginPath(); g.moveTo(0,10*U-i*4*U); g.lineTo(-i*3.5*U,4*U-i*4*U); g.moveTo(0,10*U-i*4*U); g.lineTo(i*3.5*U,4*U-i*4*U); g.stroke(); }
+      g.strokeStyle='#5aa84a'; g.lineWidth=2*U; g.beginPath(); g.moveTo(0,14*U); g.lineTo(0,16*U); g.stroke(); break;
+    case 'sunlight':
+      g.fillStyle='#ffd23a'; for(let i=0;i<12;i++){ g.save(); g.rotate(i*2*Math.PI/12); _tri(g,0,-9*U,2*U,6*U,'#ffd23a'); g.restore(); }
+      _circ(g,0,0,9*U,'#ffb800'); _circ(g,0,0,7*U,'#ffd23a'); _shine(g,-3*U,-3*U,7*U); break;
+    case 'sunboom':
+      g.fillStyle='#ffcf33'; for(let i=0;i<12;i++){ g.save(); g.rotate(i*2*Math.PI/12); g.beginPath(); g.ellipse(0,-10*U,3*U,6*U,0,0,7); g.fill(); g.restore(); }
+      _circ(g,0,0,6*U,'#7a4a1a'); for(let i=0;i<6;i++){ const a=i/6*7; _circ(g,Math.cos(a)*3*U,Math.sin(a)*3*U,U,'#3a2410'); } break;
+    default:
+      _circ(g,0,2*U,10*U,'#e6394f'); _shine(g,-3*U,-2*U,9*U); _leaf(g,2*U,-7*U,7*U,4*U,0.6,'#4bb356');
+  }
+  g.restore();
+}
+// Twinkle sparkles around a rare crop.
+function drawSparkles(g,cx,cy,r,ph,col){
+  for(let i=0;i<3;i++){ const a=ph*0.6+i*2.1; const sx=cx+Math.cos(a)*r, sy=cy+Math.sin(a*1.3)*r*0.7-2;
+    const tw=0.5+0.5*Math.sin(ph*3+i*2); g.save(); g.globalAlpha=tw; g.fillStyle=col||'#fff'; drawStar(g,sx,sy,3+tw*2,4); g.restore(); }
+}
+// A little growing seedling for plots that aren't ripe yet.
+function drawSprout(g,cx,cy,U,pct){
+  const h=(5+pct*11)*U; g.strokeStyle='#4bb356'; g.lineWidth=2*U; g.lineCap='round';
+  g.beginPath(); g.moveTo(cx,cy+9*U); g.lineTo(cx,cy+9*U-h); g.stroke();
+  const ly=cy+9*U-h+2*U, lw=(3+pct*6)*U; g.fillStyle='#5bc766';
+  g.save(); g.translate(cx,ly); g.beginPath(); g.ellipse(-lw*0.6,0,lw,lw*0.55,0.6,0,7); g.ellipse(lw*0.6,0,lw,lw*0.55,-0.6,0,7); g.fill(); g.restore();
+}
+// Cache a small sprite of each crop for the menus (shop, bag, hotbar…).
+const _cropCache={};
+function cropSpriteURL(id){ if(_cropCache[id]) return _cropCache[id]; try{ const c=document.createElement('canvas'); c.width=40; c.height=40; const g=c.getContext('2d'); drawCrop(g,id,20,19,1.05,0); return _cropCache[id]=c.toDataURL(); }catch(e){ return ''; } }
+function cropImg(id,px){ px=px||26; const u=cropSpriteURL(id); return u?`<img src="${u}" width="${px}" height="${px}" style="vertical-align:middle;image-rendering:auto" alt="">`:(SEED_MAP[id]?SEED_MAP[id].emoji:''); }
+
 function drawPlot(pl,i,active){
   const x=pl.x-TS/2, y=pl.y-TS/2;
   roundRect(x,y,TS,TS,10,'#6f4a30');
@@ -1596,10 +1711,13 @@ function drawPlot(pl,i,active){
       const sh=1-(bob+4)/16;
       ctx.fillStyle='rgba(0,0,0,.22)'; ctx.beginPath();
       ctx.ellipse(pl.x, pl.y+13, 13*sh, 5*sh, 0, 0, Math.PI*2); ctx.fill();
+      const swayPh = now()/500 + pl.x*0.05;             // each plant sways out of phase
       ctx.save(); ctx.translate(pl.x, pl.y-2+bob); ctx.scale(pulse,pulse);
-      ctx.font='30px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.fillText(s.emoji, 0, 0);
+      drawCrop(ctx, s.id, 0, 0, 1.0, swayPh);
       ctx.restore();
+      // sparkles for the fanciest crops
+      if(RARITY_ORDER[s.rarity]>=4) drawSparkles(ctx, pl.x, pl.y, TS*0.5, now()/220,
+        s.rarity==='supermythic'?'#ffd54a':(s.rarity==='exclusive'?'#5be08a':'#ff9bdf'));
       // gold ready ring
       ctx.strokeStyle='#ffd54a'; ctx.lineWidth=3;
       ctx.beginPath(); ctx.arc(pl.x, pl.y, TS*0.55, 0, Math.PI*2); ctx.stroke();
@@ -1613,8 +1731,7 @@ function drawPlot(pl,i,active){
       let next=Infinity, dur=REGROW_MS;
       for(const t of pl.timers){ if(t.at<next){ next=t.at; dur=t.dur||REGROW_MS; } }
       const pct = next===Infinity ? 1 : Math.min(1, Math.max(0, 1-(next-now())/dur));
-      ctx.font='20px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.fillText('🌱', pl.x, pl.y-2);
+      drawSprout(ctx, pl.x, pl.y-2, 1.0, pct);
       ctx.strokeStyle='rgba(0,0,0,.35)'; ctx.lineWidth=4;
       ctx.beginPath(); ctx.arc(pl.x, pl.y, TS*0.5, 0, Math.PI*2); ctx.stroke();
       ctx.strokeStyle='#5be08a'; ctx.lineWidth=4;
@@ -1657,8 +1774,7 @@ function drawFriendGarden(f, fi, active){
     const x=p.x-TS/2, y=p.y-TS/2;
     roundRect(x,y,TS,TS,10,'#6f4a30'); roundRect(x+4,y+4,TS-8,TS-8,7,'#5a3b26');
     const s=SEED_MAP[f.seeds[i]]||SEED_MAP[SEEDS[0].id];
-    ctx.font='26px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillText(s.emoji, p.x, p.y-1);
+    drawCrop(ctx, s.id, p.x, p.y-1, 0.82, now()/500+p.x*0.05);
   });
   // name banner with a little lock (view-only)
   const sign=friendSign(fi);
@@ -1702,6 +1818,7 @@ function drawBuilding(b, active){
 // ---- Pop / floating-text effects (juicy 3D-style animations) ----
 let fx=[];
 function popFx(x,y,emoji){ fx.push({kind:'pop', x, y, emoji, born:performance.now(), life:850}); }
+function popCrop(x,y,id){ fx.push({kind:'popc', x, y, id, born:performance.now(), life:850}); }
 function textFx(x,y,text,color){ fx.push({kind:'text', x, y, text, color:color||'#ffd54a', born:performance.now(), life:950}); }
 function drawFx(){
   const t0=performance.now();
@@ -1709,12 +1826,13 @@ function drawFx(){
     const f=fx[i]; const t=(t0-f.born)/f.life;
     if(t>=1){ fx.splice(i,1); continue; }
     ctx.save();
-    if(f.kind==='pop'){
+    if(f.kind==='pop' || f.kind==='popc'){
       const scale = t<0.25 ? (0.3+2.8*t) : (1 + 0.35*Math.sin((t-0.25)*3)); // spring pop
       const rise = -26*t; const alpha = t<0.7?1:1-(t-0.7)/0.3;
       ctx.globalAlpha=Math.max(0,alpha); ctx.translate(f.x, f.y+rise); ctx.scale(scale, scale*(0.85+0.15*Math.cos(t*10)));
       ctx.rotate(Math.sin(t*7)*0.18);
-      ctx.font='32px serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(f.emoji,0,0);
+      if(f.kind==='popc'){ drawCrop(ctx, f.id, 0, 0, 1.1, t*10); }
+      else { ctx.font='32px serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(f.emoji,0,0); }
     } else {
       const rise=-40*t; ctx.globalAlpha=1-t;
       ctx.font='800 17px Segoe UI, sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
@@ -1866,7 +1984,7 @@ function renderBag(){
   const barIds=owned.filter(id=>!state.bag[id]);
   const bagIds=owned.filter(id=>state.bag[id]);
   const tile=(id)=>{ const s=SEED_MAP[id]; const d=document.createElement('div'); d.className='bagitem'; d.dataset.id=id;
-    d.innerHTML=`<span class="bq">×${state.seedInv[id]}</span><div class="be">${s.emoji}</div><div class="bn">${s.name}</div>`;
+    d.innerHTML=`<span class="bq">×${state.seedInv[id]}</span><div class="be">${cropImg(id,24)}</div><div class="bn">${s.name}</div>`;
     attachBagDrag(d,id); return d; };
   if(!barIds.length) bar.innerHTML='<div class="bagempty">No seeds on your bar</div>'; else barIds.forEach(id=>bar.appendChild(tile(id)));
   if(!bagIds.length) bag.innerHTML='<div class="bagempty">Drag seeds here to store them 🎒</div>'; else bagIds.forEach(id=>bag.appendChild(tile(id)));
