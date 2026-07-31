@@ -60,18 +60,21 @@ that fires explosive rockets), **knives & swords** (Knife, Dagger, Machete,
 Cleaver, Rapier, Katana, Greatsword) and **throwable bombs** (Frag, Sticky,
 Cluster, Molotov, Dynamite, MegaNuke).
 
-**⚔️ Arena — a true 3D first-person team battle.** Rendered with inline WebGL
-(no external libraries — still one offline file). Press **＋ Spawn** to drop
-fighters onto colored teams — **type in exactly how many you want** (up to 40 per
-spawn) — and hand them any weapon. The fighters are **detailed humanoid
-soldiers** (helmets, vests, backpacks, articulated arms and legs with a walk
-cycle) that walk, aim, shoot, launch rockets, throw bombs and swing blades. Every
-team attacks every other team — **including you** — and the **last team standing
-wins** (no friendly fire). Hit **⚔️ Auto-brawl** to pit Red vs Green and watch
-them fight to a winner. Weapon traits play out in 3D: homing rounds curve after
-targets, pierce shots pass through, explosives, rockets and bombs blast an area,
-ricochets bounce off walls. Your held weapon is drawn in first person to match
-what you're carrying.
+**⚔️ Arena — a true 3D first-person team battle** in an outdoor field: **blue sky,
+clouds, a sun, grassy ground and stone walls**, rendered with inline WebGL (no
+external libraries — still one offline file). Press **＋ Spawn** to drop fighters
+onto colored teams — **type in exactly how many you want** (up to 40 per spawn) —
+and hand them any weapon. Spawned fighters **mill about peacefully and won't hurt
+anyone until you press the ⚔️ Fight button**, so you can set up a battle first.
+The fighters are **detailed humanoid soldiers** (helmets, vests, backpacks,
+articulated arms/legs, boots, walk cycle, aiming pose and recoil) that walk, aim,
+shoot, launch rockets, throw bombs and swing blades. Every team attacks every
+other team — **including you** — and the **last team standing wins** (no friendly
+fire). Hit **⚔️ Auto-brawl** to pit Red vs Green and watch them fight to a winner.
+Your held weapon is drawn in first person **with your hands holding it** — a real
+rifle, an RPG tube, or an actual knife/blade — and traits play out in 3D. A
+**forge machine** sits in the arena, and the 🔧 Forge button jumps to the
+Workshop.
 
 - **Desktop:** click the arena to capture the mouse, **WASD** move, **mouse**
   look/aim, **click/Space** fire, **R** reload, **G** bomb, **V** melee, **Esc**
