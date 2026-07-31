@@ -49,10 +49,19 @@ Vercel, Cloudflare Pages, itch.io, or any web server and it works the same way.
 `gun-game.html` is a second self-contained game in the same repo. **Build guns,
 fuse two of them together** to breed hybrids that combine their traits
 (explosive, homing, pierce, scatter, burst, incendiary, ricochet…), then
-**test-fire them in a sandbox range** on target dummies with a live DPS readout.
-Open it directly, or reach it from the same host at `.../gun-game.html`. Works
-on desktop (WASD + mouse) and touch (on-screen stick + auto-aim). Your arsenal
-saves in the browser.
+**test-fire them in a true 3D first-person sandbox range** on floating targets
+with a live DPS readout. The range is rendered with inline WebGL (no external
+libraries — still one offline file). Traits play out in 3D: homing rounds curve
+to seek targets, pierce shots pass through, explosives blast an area, ricochets
+bounce off the walls. Open it directly, or reach it from the same host at
+`.../gun-game.html`.
+
+- **Desktop:** click the range to capture the mouse, **WASD** move, **mouse**
+  look/aim, **click/Space** fire, **R** reload, **Esc** release.
+- **Touch:** left stick moves, drag the screen to look, **FIRE** button shoots
+  (with aim assist).
+
+Your arsenal saves in the browser.
 
 ## What's in the repo
 
