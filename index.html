@@ -590,6 +590,7 @@ const RARITY_ORDER = {common:0,rare:1,epic:2,legendary:3,mythic:4,exclusive:5,su
 
 // ---- Summer Event Part 2: Summer Harvest (replaces the fishing event) ----
 const SUMMER_DUR      = 7*24*60*60*1000;  // the whole event lasts exactly 7 days, then leaves
+const NEVER           = 8.64e15;          // sentinel "never" time (survives JSON, unlike Infinity)
 const HARVEST_CYCLE_MS= 10*60*1000;       // a new Summer Harvest round starts every 10 minutes
 const HARVEST_ROUND_DUR= 5*60*1000;       // each round is open for 5 minutes, then a 5-min break
 const CRATE_FULL_KG   = 250;              // how much weight makes the crate look full
@@ -796,8 +797,9 @@ let state = load() || {
   event:null,         // {type, until}  active weather event
   nextEventCheck:0,   // when to next roll for an event
   summerUntil:0,      // when the Summer Harvest event ends
-  nextSummer:0,       // when the next Summer Harvest event begins
+  nextSummer:0,       // when the Summer Harvest event begins (one-time)
   summerEpoch:0,      // when the current event started (round timing anchor)
+  summerOver:false,   // true once the one-time event has finished for good
   harvest:{ weight:0, count:0, idx:0 },  // this round's contribution
   xp:0,
 };
@@ -1140,15 +1142,18 @@ function harvestTier(){ ensureHarvest(); let t=HARVEST_TIERS[0]; for(const x of 
 function nextTier(){ const cur=harvestTier(); return HARVEST_TIERS.find(x=>x.tier===cur.tier+1)||null; }
 
 function maybeSummer(){
-  // The 7-day event: starts right away, and a fresh one begins when it ends.
-  if(state.summerUntil && now()>=state.summerUntil){ state.summerUntil=0; log('🏖️ Summer Event Part 2 has ended for now.'); }
-  if(!summerActive() && now()>=state.nextSummer){
+  // A one-time 7-day event: it starts once, then ends for good after a week.
+  if(state.summerUntil && now()>=state.summerUntil){
+    state.summerUntil=0;
+    if(!state.summerOver){ state.summerOver=true; log('🏁 <b>Summer Event Part 2 has ended.</b> Thanks for harvesting! 🌞'); notify('🏁 <b>Summer Event Part 2 has ended!</b> See you next event 👋'); }
+  }
+  if(!summerActive() && !state.summerOver && now()>=state.nextSummer){
     state.summerUntil  = now()+SUMMER_DUR;
-    state.nextSummer   = now()+SUMMER_DUR;
+    state.nextSummer   = NEVER;            // one-time event — never auto-restarts
     state.summerEpoch  = now();
-    state.harvest      = { weight:0, count:0, idx:0 };
-    log('🌞 <b>Summer Harvest</b> has begun! Deposit crops into the crate every round for rewards.');
-    notify('🌞 <b>Summer Harvest is here!</b> Fill the crate with crops to win rewards!');
+    state.harvest      = { weight:0, count:0, idx:0, ended:false };
+    log('🌞 <b>Summer Harvest</b> has begun! It runs for 1 week — deposit crops each round for rewards.');
+    notify('🌞 <b>Summer Harvest is here for 1 week!</b> Fill the crate with crops to win rewards!');
   }
   if(!summerActive()) return;
   // Round ticking — a round opens for 5 min each 10-min cycle.
@@ -2185,6 +2190,7 @@ function importCode(code){
   if(!d.nextSummer) d.nextSummer=now();
   if(!d.summerEpoch) d.summerEpoch = d.summerUntil ? d.summerUntil-SUMMER_DUR : now();
   if(!d.harvest || typeof d.harvest!=='object') d.harvest={ weight:0, count:0, idx:0 };
+  if(!d.summerV3end){ d.summerV3end=true; d.summerOver=false; const act=now()<d.summerUntil; if(act){ d.summerUntil=now()+SUMMER_DUR; d.summerEpoch=now(); d.harvest={weight:0,count:0,idx:0,ended:false}; } d.nextSummer = act ? NEVER : now(); }
   if(!d.sprinklerInv || typeof d.sprinklerInv!=='object') d.sprinklerInv={};
   if(d.sprinkler && typeof d.sprinkler.weightBonus!=='number'){ const g=GEAR_MAP[d.sprinkler.tier]; if(g){ d.sprinkler.weightBonus=g.weightBonus; d.sprinkler.gold=g.gold; d.sprinkler.rainbow=g.rainbow; } else d.sprinkler=null; }
   delete d.fishUntil; delete d.nextFish; delete d.summerCoins; delete d.summerStock;
@@ -2468,10 +2474,16 @@ if(!state.nextEventCheck) state.nextEventCheck = now()+90*1000;  // first event 
 if(state.event && now()>=state.event.until) state.event=null;
 // Summer Event Part 2 — Summer Harvest (replaces the old fishing event)
 if(typeof state.summerUntil!=='number') state.summerUntil=0;
-if(!state.nextSummer) state.nextSummer = now();  // event begins right away
+if(!state.nextSummer) state.nextSummer = now();  // event begins right away (once)
 if(state.summerUntil && now()>=state.summerUntil) state.summerUntil=0;
 if(!state.summerEpoch) state.summerEpoch = state.summerUntil ? state.summerUntil-SUMMER_DUR : now();
 if(!state.harvest || typeof state.harvest!=='object') state.harvest={ weight:0, count:0, idx:harvestCycleIndex(), ended:!roundActive() };
+// One-time switch to the "ends in a week, no auto-restart" model.
+if(!state.summerV3end){
+  state.summerV3end=true; state.summerOver=false;
+  if(summerActive()){ state.summerUntil = now()+SUMMER_DUR; state.summerEpoch = now(); state.harvest={ weight:0, count:0, idx:0, ended:false }; }
+  state.nextSummer = summerActive() ? NEVER : now();   // finish the running week, or start one final week now
+}
 if(!state.sprinklerInv || typeof state.sprinklerInv!=='object') state.sprinklerInv={};
 // old sprinkler saves used {mult}; give them the new weight powers so they still work
 if(state.sprinkler && typeof state.sprinkler.weightBonus!=='number'){ const g=GEAR_MAP[state.sprinkler.tier]; if(g){ state.sprinkler.weightBonus=g.weightBonus; state.sprinkler.gold=g.gold; state.sprinkler.rainbow=g.rainbow; } else state.sprinkler=null; }
