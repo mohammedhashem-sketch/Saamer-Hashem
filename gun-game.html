@@ -265,6 +265,7 @@ const BASE = [
   G({name:'Seeker',   dmg:20, rof:220, mag:14, reload:1000, spread:0.05, speed:560, traits:['homing']}),
   G({name:'Burster',  dmg:18, rof:340, mag:24, reload:1050, spread:0.04, speed:720, traits:['burst']}),
   G({name:'Torch',    dmg:9,  rof:110, mag:26, reload:1100, spread:0.09, speed:640, traits:['incendiary']}),
+  G({name:'Hemlock',  dmg:30, rof:120, mag:27, reload:1150, spread:0.015,speed:900, traits:['burst','rapid']}),
 ];
 
 // ---------- Persistent arsenal ----------
@@ -272,6 +273,10 @@ let uidCounter = 0;
 function uid(){ return ++uidCounter; }
 let arsenal = load();
 uidCounter = arsenal.reduce((m,g)=>Math.max(m,g.uid||0),0);
+// migration: make sure every base gun exists in an older saved arsenal (adds new stock guns like Hemlock)
+let _added=false;
+for(const b of BASE){ if(!arsenal.some(g=>g.tier===0 && g.name===b.name)){ arsenal.push(Object.assign({uid:uid()}, JSON.parse(JSON.stringify(b)))); _added=true; } }
+if(_added) save();
 function load(){
   try{ const raw=JSON.parse(localStorage.getItem('gunforge_v1')); if(Array.isArray(raw)&&raw.length) return raw; }catch(e){}
   return freshArsenal();
