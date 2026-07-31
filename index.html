@@ -334,8 +334,8 @@
     <h2>🌞 Summer Harvest</h2>
     <p class="sub">Grow &amp; harvest crops, then <b>deposit them into the giant crate</b>. The more <b>weight</b> and crops you add each round, the bigger your rewards!</p>
     <div class="hgrid">
-      <div class="hstat"><span class="hlab">🎉 Event ends</span><b id="sumEventLeft">--</b></div>
-      <div class="hstat"><span class="hlab">⏱️ Next round</span><b id="sumRoundLeft">--</b></div>
+      <div class="hstat"><span class="hlab">⏳ Leaves in</span><b id="sumEventLeft">--</b></div>
+      <div class="hstat"><span class="hlab">🧺 Round</span><b id="sumRoundLeft">--</b></div>
       <div class="hstat"><span class="hlab">⭐ Points</span><b id="sumPoints">0</b></div>
       <div class="hstat"><span class="hlab">⚖️ Submitted</span><b id="sumWeight">0 kg</b></div>
     </div>
@@ -589,8 +589,9 @@ const SEED_MAP = Object.fromEntries(SEEDS.map(s=>[s.id,s]));
 const RARITY_ORDER = {common:0,rare:1,epic:2,legendary:3,mythic:4,exclusive:5,supermythic:6};
 
 // ---- Summer Event Part 2: Summer Harvest (replaces the fishing event) ----
-const SUMMER_DUR      = 7*24*60*60*1000;  // the whole event lasts exactly 7 days
-const HARVEST_ROUND_MS= 10*60*1000;       // a new Summer Harvest round every 10 minutes
+const SUMMER_DUR      = 7*24*60*60*1000;  // the whole event lasts exactly 7 days, then leaves
+const HARVEST_CYCLE_MS= 10*60*1000;       // a new Summer Harvest round starts every 10 minutes
+const HARVEST_ROUND_DUR= 5*60*1000;       // each round is open for 5 minutes, then a 5-min break
 const CRATE_FULL_KG   = 250;              // how much weight makes the crate look full
 // Seed-pack odds by rarity (used by the Summer Seed Pack reward).
 const PACK_W = { common:1, rare:0.3, epic:0.1, legendary:0.01, mythic:0.001, supermythic:0.0001 };
@@ -1124,10 +1125,14 @@ function makeCropKey(id, traits, weight, mut){
 //  Summer Harvest event (grow → harvest → deposit into the crate)
 // ============================================================
 function summerActive(){ return now() < state.summerUntil; }
-// Which 10-min round are we in? Anchored to summerEpoch so it survives rejoins.
-function harvestRoundIndex(){ return Math.floor((now()-(state.summerEpoch||0))/HARVEST_ROUND_MS); }
-function roundEndsAt(){ return (state.summerEpoch||0) + (harvestRoundIndex()+1)*HARVEST_ROUND_MS; }
-function ensureHarvest(){ if(!state.harvest || typeof state.harvest!=='object') state.harvest={ weight:0, count:0, idx:harvestRoundIndex() }; }
+// Round timing is anchored to summerEpoch so it survives leaving & rejoining.
+// Each 10-min cycle = 5 min open (a round) + 5 min break before the next round.
+function harvestCycleIndex(){ return Math.floor((now()-(state.summerEpoch||0))/HARVEST_CYCLE_MS); }
+function cycleStart(){ return (state.summerEpoch||0) + harvestCycleIndex()*HARVEST_CYCLE_MS; }
+function roundActive(){ return summerActive() && (now()-cycleStart()) < HARVEST_ROUND_DUR; }
+function roundActiveEndsAt(){ return cycleStart()+HARVEST_ROUND_DUR; }   // when the open round closes
+function nextRoundAt(){ return cycleStart()+HARVEST_CYCLE_MS; }          // when the next round opens
+function ensureHarvest(){ if(!state.harvest || typeof state.harvest!=='object') state.harvest={ weight:0, count:0, idx:harvestCycleIndex(), ended:!roundActive() }; }
 // Contribution points reward both weight and number of crops.
 function contribPoints(){ ensureHarvest(); return Math.round(state.harvest.weight*10 + state.harvest.count*3); }
 function crateFillPct(){ ensureHarvest(); return Math.min(1, state.harvest.weight/CRATE_FULL_KG); }
@@ -1146,14 +1151,20 @@ function maybeSummer(){
     notify('🌞 <b>Summer Harvest is here!</b> Fill the crate with crops to win rewards!');
   }
   if(!summerActive()) return;
-  // Round ticking — award the finished round, then reset for the next.
+  // Round ticking — a round opens for 5 min each 10-min cycle.
   ensureHarvest();
-  const idx=harvestRoundIndex();
+  const idx=harvestCycleIndex();
   if(idx>state.harvest.idx){
-    if(state.harvest.weight>0) finishHarvestRound();   // reward the round we contributed to
-    state.harvest={ weight:0, count:0, idx };           // reset for the new round
-    notify('🌞 <b>New Summer Harvest round!</b> Start depositing crops into the crate! 🧺');
-    log('🌞 A new <b>Summer Harvest round</b> has started (10 min).');
+    // a brand-new cycle began → a fresh round opens now
+    if(!state.harvest.ended && state.harvest.weight>0) finishHarvestRound();  // close a round we missed
+    state.harvest={ weight:0, count:0, idx, ended:false };
+    notify('🌞 <b>New Summer Harvest round!</b> You have 5 minutes to fill the crate! 🧺');
+    log('🌞 A new <b>Summer Harvest round</b> has opened (5 min).');
+  } else if(!roundActive() && !state.harvest.ended){
+    // the 5-minute round just closed → reward it, then wait for the next cycle
+    if(state.harvest.weight>0) finishHarvestRound();
+    else notify('🌞 Round over — next one in 5 minutes. Grow more crops! 🌱');
+    state.harvest.ended=true; state.harvest.weight=0; state.harvest.count=0;
   }
 }
 // A random SUMMER FRUIT, weighted by rarity (for the Summer Seed Pack reward).
@@ -1167,6 +1178,7 @@ function packSeed(){
 // Deposit every harvested crop in your basket into the crate.
 function depositCrops(){
   if(!summerActive()){ toast('The Summer Harvest event isn’t running right now.'); return; }
+  if(!roundActive()){ toast('⏳ The round is closed — wait for the next one to open!'); return; }
   ensureHarvest();
   const keys=Object.keys(state.cropInv);
   if(!keys.length){ toast('No crops to deposit! Harvest some fruit first. 🧺'); return; }
@@ -1400,7 +1412,7 @@ function renderSummer(){
   ensureHarvest();
   const active=summerActive();
   document.getElementById('sumEventLeft').textContent = active? fmtTime((state.summerUntil-now())/1000) : 'ended';
-  document.getElementById('sumRoundLeft').textContent = active? fmtTime((roundEndsAt()-now())/1000) : '--';
+  document.getElementById('sumRoundLeft').textContent = !active ? '--' : roundActive() ? `open ${fmtTime((roundActiveEndsAt()-now())/1000)}` : `in ${fmtTime((nextRoundAt()-now())/1000)}`;
   document.getElementById('sumPoints').textContent = contribPoints().toLocaleString();
   document.getElementById('sumWeight').textContent = state.harvest.weight.toFixed(1)+' kg';
   const tier=harvestTier(), nx=nextTier();
@@ -1411,8 +1423,11 @@ function renderSummer(){
   document.getElementById('sumCrateTxt').textContent = `Crate ${Math.round(fill*100)}% full`;
   const db=document.getElementById('depositBtn');
   const nCrops=Object.values(state.cropInv).reduce((a,b)=>a+b,0);
-  db.disabled=!active||!nCrops;
-  db.textContent = !active ? '🌞 Event not running' : nCrops ? `🧺 Deposit ${nCrops} crops` : '🧺 Harvest crops to deposit';
+  const open=roundActive();
+  db.disabled=!active||!open||!nCrops;
+  db.textContent = !active ? '🌞 Event not running'
+    : !open ? `⏳ Next round in ${fmtTime((nextRoundAt()-now())/1000)}`
+    : nCrops ? `🧺 Deposit ${nCrops} crops` : '🧺 Harvest crops to deposit';
   // reward preview with current (tier-boosted) chances
   const el=document.getElementById('rewardPreview'); el.innerHTML='';
   HARVEST_REWARDS.forEach(rw=>{
@@ -1903,16 +1918,23 @@ function drawHarvestCrate(active){
   ctx.restore();
   // front rim so fruit sits "inside"
   ctx.strokeStyle='#a9713c'; ctx.lineWidth=6; ctx.beginPath(); ctx.moveTo(b.x+3,b.y+b.h-7); ctx.lineTo(b.x+b.w-3,b.y+b.h-7); ctx.stroke();
+  // TIMER 1: whole event "leaves in ~a week" countdown
+  ctx.font='700 12px Segoe UI, sans-serif';
+  const l1=`⏳ Leaves in ${fmtTime((state.summerUntil-now())/1000)}`; const tw=ctx.measureText(l1).width;
+  roundRectRaw(cx-tw/2-9, b.y-80, tw+18, 21, 8); ctx.fillStyle=active?'#c78a2f':'rgba(15,30,19,.92)'; ctx.fill();
+  ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(l1, cx, b.y-69.5);
   // sign board
   ctx.font='700 13px Segoe UI, sans-serif';
-  const l1='🧺 Summer Harvest'; const tw=ctx.measureText(l1).width;
-  roundRectRaw(cx-tw/2-9, b.y-58, tw+18, 22, 8); ctx.fillStyle=active?'#c78a2f':'rgba(15,30,19,.92)'; ctx.fill();
-  ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(l1, cx, b.y-47);
-  // round timer
-  const l2=`⏱️ Round: ${fmtTime((roundEndsAt()-now())/1000)}`; ctx.font='700 12px Segoe UI, sans-serif';
+  const lS='🧺 Summer Harvest'; const twS=ctx.measureText(lS).width;
+  roundRectRaw(cx-twS/2-9, b.y-56, twS+18, 22, 8); ctx.fillStyle='rgba(15,30,19,.92)'; ctx.fill();
+  ctx.fillStyle='#fff'; ctx.fillText(lS, cx, b.y-45);
+  // TIMER 2: round open (5 min) or countdown to the next round
+  const open=roundActive();
+  const l2 = open ? `🧺 Round open! ${fmtTime((roundActiveEndsAt()-now())/1000)}` : `⏱️ Next round ${fmtTime((nextRoundAt()-now())/1000)}`;
+  ctx.font='700 12px Segoe UI, sans-serif';
   const tw2=ctx.measureText(l2).width;
-  roundRectRaw(cx-tw2/2-8, b.y-34, tw2+16, 20, 7); ctx.fillStyle='rgba(47,138,199,.95)'; ctx.fill();
-  ctx.fillStyle='#fff'; ctx.fillText(l2, cx, b.y-24);
+  roundRectRaw(cx-tw2/2-8, b.y-32, tw2+16, 20, 7); ctx.fillStyle=open?'rgba(47,138,199,.95)':'rgba(199,138,47,.95)'; ctx.fill();
+  ctx.fillStyle='#fff'; ctx.fillText(l2, cx, b.y-22);
 }
 function drawFriendGarden(f, fi, active){
   const plots=friendPlots(fi);
@@ -2449,7 +2471,7 @@ if(typeof state.summerUntil!=='number') state.summerUntil=0;
 if(!state.nextSummer) state.nextSummer = now();  // event begins right away
 if(state.summerUntil && now()>=state.summerUntil) state.summerUntil=0;
 if(!state.summerEpoch) state.summerEpoch = state.summerUntil ? state.summerUntil-SUMMER_DUR : now();
-if(!state.harvest || typeof state.harvest!=='object') state.harvest={ weight:0, count:0, idx:harvestRoundIndex() };
+if(!state.harvest || typeof state.harvest!=='object') state.harvest={ weight:0, count:0, idx:harvestCycleIndex(), ended:!roundActive() };
 if(!state.sprinklerInv || typeof state.sprinklerInv!=='object') state.sprinklerInv={};
 // old sprinkler saves used {mult}; give them the new weight powers so they still work
 if(state.sprinkler && typeof state.sprinkler.weightBonus!=='number'){ const g=GEAR_MAP[state.sprinkler.tier]; if(g){ state.sprinkler.weightBonus=g.weightBonus; state.sprinkler.gold=g.gold; state.sprinkler.rainbow=g.rainbow; } else state.sprinkler=null; }
@@ -2490,7 +2512,7 @@ setInterval(()=>{
   else evEl.style.display='none';
   // live Summer Harvest HUD chip: round countdown while the event is on
   const suEl=document.getElementById('hudSummer');
-  if(summerActive()){ suEl.style.display='flex'; suEl.textContent=`🧺 Round ${fmtTime((roundEndsAt()-now())/1000)}`; }
+  if(summerActive()){ suEl.style.display='flex'; suEl.textContent = roundActive()? `🧺 Round ${fmtTime((roundActiveEndsAt()-now())/1000)}` : `🧺 Next ${fmtTime((nextRoundAt()-now())/1000)}`; }
   else suEl.style.display='none';
   if(document.getElementById('gearOverlay').classList.contains('show')) renderGear();
   if(document.getElementById('summerOverlay').classList.contains('show')) renderSummer();
