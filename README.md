@@ -49,12 +49,14 @@ Vercel, Cloudflare Pages, itch.io, or any web server and it works the same way.
 `gun-game.html` is a second self-contained game in the same repo. It has two
 parts:
 
-**🔧 Workshop — craft weapons.** Start with guns, blades and a bomb. **Fuse two
-weapons of the same type** to breed hybrids that combine their traits (explosive,
-homing, pierce, scatter, burst, incendiary, ricochet…). Bolt a **🔇 silencer** or
-a **💥 boom-launcher** onto any gun to make combos like *Silenced Rifle* or
-*Rifle +Boom*. Weapons include **guns, knives, swords (Katana) and throwable
-bombs**.
+**🔧 Workshop — craft weapons.** Start with realistically-drawn guns, blades and a
+bomb. **Select any number of weapons — mixing guns, blades and bombs freely — and
+Fuse them** into one hybrid: its stats blend and its traits (explosive, homing,
+pierce, scatter, burst, incendiary, ricochet…) combine, and cross-type fusions
+graft on extra abilities (a gun that also swings a **+Blade** and lobs a **+Boom**).
+Bolt a **🔇 silencer** or a **💥 boom-launcher** onto any gun for combos like
+*Silenced Rifle +Boom*. Base weapons include **guns, knives, swords (Katana) and
+throwable bombs**.
 
 **⚔️ Arena — a true 3D first-person team battle.** Rendered with inline WebGL
 (no external libraries — still one offline file). Press **＋ Spawn** to drop
