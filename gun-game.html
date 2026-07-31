@@ -170,6 +170,8 @@
   .countChip{min-width:38px;padding:8px 10px;border-radius:9px;background:#0d1428;border:1px solid var(--line);
     color:var(--ink);font-weight:800;cursor:pointer;text-align:center;}
   .countChip.on{background:linear-gradient(180deg,#7ad4ff,#39b4f5);color:#04122a;border-color:transparent;}
+  .sp-num{width:66px;background:#0d1428;border:1px solid var(--line);color:var(--ink);border-radius:9px;
+    padding:8px 10px;font-size:15px;font-weight:800;text-align:center;}
 
   #toast{position:fixed;top:64px;left:50%;transform:translateX(-50%);z-index:50;
     background:rgba(20,27,51,.92);border:1px solid var(--line);border-radius:12px;padding:9px 15px;
@@ -243,7 +245,9 @@
       <div class="sp-row"><span class="sp-lbl">Add to team</span><div id="spawnTeam" class="teamPick"></div></div>
       <div class="sp-row"><span class="sp-lbl">Weapon</span>
         <select id="spawnWeapon" class="sp-sel"></select></div>
-      <div class="sp-row"><span class="sp-lbl">How many</span><div id="spawnCount" class="countPick"></div></div>
+      <div class="sp-row"><span class="sp-lbl">How many</span>
+        <div id="spawnCount" class="countPick"></div>
+        <input id="spawnCountInput" class="sp-num" type="number" min="1" max="40" value="3" inputmode="numeric"></div>
       <button class="btn" id="doSpawn" style="width:100%;margin-top:4px;">＋ Spawn them</button>
       <button class="btn blue" id="brawlBtn" style="width:100%;margin-top:8px;">⚔️ Auto-brawl: Red vs Green</button>
       <p style="color:var(--muted);font-size:12px;margin:10px 2px 0;">Fighters attack every other team — including you. Last team standing wins. No friendly fire.</p>
@@ -326,9 +330,22 @@ const BASE = [
   G({name:'Burster',  dmg:18, rof:340, mag:24, reload:1050, spread:0.04, speed:720, traits:['burst']}),
   G({name:'Torch',    dmg:9,  rof:110, mag:26, reload:1100, spread:0.09, speed:640, traits:['incendiary']}),
   G({name:'Hemlock',  dmg:30, rof:120, mag:27, reload:1150, spread:0.015,speed:900, traits:['burst','rapid']}),
-  M({name:'Knife',    dmg:42, reach:2.4, arc:0.7, swing:320}),
-  M({name:'Katana',   dmg:85, reach:3.4, arc:1.0, swing:620}),
+  G({name:'RPG',      dmg:95, rof:1500,mag:1,  reload:2000, spread:0.01, speed:360, traits:['explosive'], rpg:true, blast:7}),
+  // knives / blades
+  M({name:'Knife',      dmg:42, reach:2.4, arc:0.7, swing:320}),
+  M({name:'Dagger',     dmg:30, reach:1.9, arc:0.6, swing:220}),
+  M({name:'Machete',    dmg:58, reach:2.9, arc:0.8, swing:420}),
+  M({name:'Cleaver',    dmg:72, reach:2.3, arc:0.7, swing:520}),
+  M({name:'Rapier',     dmg:50, reach:3.7, arc:0.35,swing:300}),
+  M({name:'Katana',     dmg:85, reach:3.4, arc:1.0, swing:620}),
+  M({name:'Greatsword', dmg:125,reach:4.1, arc:1.15,swing:820}),
+  // bombs / throwables
   B({name:'Frag',     dmg:75, blast:5.2, fuse:1400, throw:17}),
+  B({name:'Sticky',   dmg:95, blast:4.6, fuse:1600, throw:15}),
+  B({name:'Cluster',  dmg:45, blast:4.0, fuse:1500, throw:16, cluster:true}),
+  B({name:'Molotov',  dmg:28, blast:5.2, fuse:900,  throw:14, traits:['incendiary']}),
+  B({name:'Dynamite', dmg:85, blast:5.6, fuse:1800, throw:13}),
+  B({name:'MegaNuke', dmg:170,blast:11,  fuse:2200, throw:12}),
 ];
 
 // ---------- Persistent arsenal ----------
@@ -434,6 +451,7 @@ function drawRealGun(ctx,g,col){
   const spd=g.speed,dmg=g.dmg,mag=g.mag;
   const grad=(y0,y1,c0,c1)=>{const gr=ctx.createLinearGradient(0,y0,0,y1);gr.addColorStop(0,c0);gr.addColorStop(1,c1);return gr;};
   const GM0='#525b6c',GM1='#2a2f3a',DK='#181b22',STL0='#9aa3b4',STL1='#454c5b',BLK='#0f1116';
+  if(g.rpg){ drawRPG(ctx,g,col,grad,GM0,GM1,DK,BLK); return; }
   if(mag<=12 && spd<=680){ drawPistol(ctx,g,col,grad,GM0,GM1,DK,STL0,STL1,BLK); return; }
   const barrel=Math.min(60,20+spd/16), recvW=Math.min(56,36+mag*0.8), recvH=13+Math.min(7,dmg/10);
   const back=22, hg=Math.min(28,12+barrel*0.28);
@@ -507,6 +525,31 @@ function drawPistol(ctx,g,col,grad,GM0,GM1,DK,STL0,STL1,BLK){
   ctx.strokeStyle='rgba(0,0,0,.3)'; ctx.lineWidth=1; for(let i=1;i<4;i++){ ctx.beginPath(); ctx.moveTo(-5,i*4); ctx.lineTo(7,i*4); ctx.stroke(); }
   ctx.fillStyle=col; rr(ctx,-5,gh-3,12,3,1); ctx.fill(); ctx.restore();
   if(g.traits.includes('pierce')||g.traits.includes('homing')){ ctx.fillStyle=BLK; rr(ctx,x0+slideW*0.4-6,top-8,16,6,2); ctx.fill(); ctx.fillStyle=col; ctx.beginPath(); ctx.arc(x0+slideW*0.4+9,top-5,2.5,0,6.28); ctx.fill(); }
+}
+function drawRPG(ctx,g,col,grad,GM0,GM1,DK,BLK){
+  const th=15;
+  // rear exhaust flare (trumpet)
+  ctx.fillStyle=grad(-th,th,GM0,GM1); ctx.beginPath();
+  ctx.moveTo(-42,-th/2); ctx.lineTo(-60,-th); ctx.lineTo(-60,th); ctx.lineTo(-42,th/2); ctx.closePath(); ctx.fill();
+  ctx.fillStyle=BLK; ctx.beginPath(); ctx.ellipse(-59,0,3,th*0.9,0,0,6.28); ctx.fill();
+  // main tube
+  ctx.fillStyle=grad(-th/2,th/2,GM0,GM1); rr(ctx,-45,-th/2,80,th,4); ctx.fill();
+  ctx.fillStyle='rgba(0,0,0,.22)'; rr(ctx,-45,2,80,th/2-2,3); ctx.fill();
+  // warhead (bulbous nose)
+  ctx.fillStyle=col; ctx.beginPath(); ctx.moveTo(33,-th/2-3);
+  ctx.quadraticCurveTo(52,-th/2-6, 66,0); ctx.quadraticCurveTo(52,th/2+6, 33,th/2+3); ctx.closePath(); ctx.fill();
+  ctx.fillStyle=BLK; ctx.beginPath(); ctx.moveTo(60,-5); ctx.quadraticCurveTo(70,0,60,5); ctx.closePath(); ctx.fill(); // tip
+  ctx.fillStyle='rgba(0,0,0,.25)'; rr(ctx,30,-th/2-2,5,th+4,2); ctx.fill();                 // fin band
+  // fins on warhead
+  ctx.fillStyle=GM1; ctx.beginPath(); ctx.moveTo(40,-th/2-3); ctx.lineTo(46,-th/2-9); ctx.lineTo(50,-th/2-3); ctx.closePath(); ctx.fill();
+  // grip + trigger guard
+  ctx.save(); ctx.translate(-8,th/2-1); ctx.rotate(0.34); ctx.fillStyle=grad(0,20,GM0,GM1); rr(ctx,-5,0,11,20,3); ctx.fill(); ctx.restore();
+  ctx.strokeStyle=GM1; ctx.lineWidth=2.4; ctx.beginPath(); ctx.arc(-3,th/2+3,5,0.1,Math.PI-0.1); ctx.stroke();
+  // front grip
+  ctx.fillStyle=GM1; rr(ctx,16,th/2-1,7,12,2); ctx.fill();
+  // top sight / optic
+  if(g.traits.includes('pierce')||g.traits.includes('homing')){ ctx.fillStyle=BLK; rr(ctx,-6,-th/2-9,20,7,3); ctx.fill(); ctx.fillStyle=col; ctx.beginPath(); ctx.arc(13,-th/2-5.5,3,0,6.28); ctx.fill(); }
+  else { ctx.fillStyle=BLK; rr(ctx,-2,-th/2-6,10,5,1); ctx.fill(); }
 }
 function drawBlade(ctx,g,col){
   const len=32+Math.min(44,g.reach*11), th=4+Math.min(8,g.dmg/14), curve=Math.min(12,g.reach*2.6);
@@ -859,15 +902,17 @@ function shootFrom(f, ox,oy,oz, dir, now){
     let dx=dir[0]+u[0]*rx+v[0]*ry, dy=dir[1]+u[1]*rx+v[1]*ry, dz=dir[2]+u[2]*rx+v[2]*ry;
     const l=Math.hypot(dx,dy,dz)||1; dx/=l;dy/=l;dz/=l;
     const sp=g.speed*0.028*rand(.96,1.04);
-    rbullets.push({x:ox,y:oy,z:oz, vx:dx*sp,vy:dy*sp,vz:dz*sp, dmg:g.dmg, r:0.14, life:2.2, col, team:f.team,
-      pierce:g.traits.includes('pierce'), explosive:g.traits.includes('explosive'), homing:g.traits.includes('homing'),
-      incendiary:g.traits.includes('incendiary'), ricochet:g.traits.includes('ricochet'), bounces:3, hitset:null, sil:g.sil}); }
+    rbullets.push({x:ox,y:oy,z:oz, vx:dx*sp,vy:dy*sp,vz:dz*sp, dmg:g.dmg, r:g.rpg?0.3:0.14, life:g.rpg?4:2.2, col, team:f.team,
+      pierce:g.traits.includes('pierce'), explosive:g.traits.includes('explosive')||!!g.rpg, homing:g.traits.includes('homing'),
+      incendiary:g.traits.includes('incendiary'), ricochet:g.traits.includes('ricochet'), bounces:3, hitset:null, sil:g.sil,
+      rocket:!!g.rpg, blast:g.blast||(g.traits.includes('explosive')?3.4:0)}); }
   if(!g.sil){ muzzle=Math.max(muzzle, f.isPlayer?0.05:0); rparts.push({x:ox,y:oy,z:oz,vx:0,vy:0,vz:0,life:0.05,max:0.05,col:[1,0.95,0.7],size:0.3}); }
   if(f.isPlayer && rShakeAdd) rShakeAdd(pellets>2?4:2);
 }
 function throwBombFrom(f, ox,oy,oz, dir, spec){
   const s=spec||f.weapon; const sp=(s.throw||16);
-  rbombs.push({x:ox,y:oy,z:oz, vx:dir[0]*sp, vy:dir[1]*sp+3.5, vz:dir[2]*sp, fuse:s.fuse/1000, dmg:s.dmg, blast:s.blast, team:f.team, t:0});
+  rbombs.push({x:ox,y:oy,z:oz, vx:dir[0]*sp, vy:dir[1]*sp+3.5, vz:dir[2]*sp, fuse:(s.fuse||1400)/1000, dmg:s.dmg, blast:s.blast, team:f.team, t:0,
+    cluster:!!s.cluster, incendiary:!!(s.traits&&s.traits.includes('incendiary')), col:s.traits&&s.traits.includes('incendiary')?[0.9,0.4,0.15]:[0.12,0.14,0.2]});
 }
 function meleeFrom(f, spec){
   const s=spec||f.weapon; const d=fighterFwd(f.yaw); let hitAny=false;
@@ -880,13 +925,16 @@ function meleeFrom(f, spec){
   return hitAny;
 }
 function fighterFwd(yaw){ return [Math.sin(yaw), 0, -Math.cos(yaw)]; }
-function explode(x,y,z,dmg,blast,team){
-  for(let i=0;i<18;i++){ const a=rand(0,6.28),b=rand(0,1),s=rand(3,9);
-    rparts.push({x,y,z,vx:Math.cos(a)*s,vy:b*s,vz:Math.sin(a)*s,life:rand(.25,.55),max:.55,col:i%2?[1,0.6,0.3]:[1,0.85,0.4],size:0.16}); }
-  if(rShakeAdd) rShakeAdd(7);
+function explode(x,y,z,dmg,blast,team,opts){
+  opts=opts||{}; const n=Math.min(40,14+Math.round(blast*2));
+  for(let i=0;i<n;i++){ const a=rand(0,6.28),b=rand(0,1),s=rand(3,9)*(0.7+blast/8);
+    const c=opts.incendiary?(i%2?[1,0.5,0.15]:[1,0.75,0.2]):(i%2?[1,0.6,0.3]:[1,0.85,0.4]);
+    rparts.push({x,y,z,vx:Math.cos(a)*s,vy:b*s,vz:Math.sin(a)*s,life:rand(.25,.6),max:.6,col:c,size:0.16*(0.8+blast/10)}); }
+  if(rShakeAdd) rShakeAdd(Math.min(14,6+blast));
   for(const t of fighters){ if(t.dead||t.team===team) continue; // no friendly fire
     const dx=t.x-x, dy=1.0-y, dz=t.z-z, d=Math.hypot(dx,dy,dz);
-    if(d<blast){ damageFighter(t, Math.round(dmg*(1-d/blast)+6), team); } }
+    if(d<blast){ damageFighter(t, Math.round(dmg*(1-d/blast)+6), team);
+      if(opts.incendiary){ t._burn=2.4; t._burnSrc=Math.max(2,Math.round(dmg*0.12)); t._burnT=0; } } }
 }
 function damageFighter(f, dmg, byTeam){
   if(f.dead) return; f.hp-=dmg; f.hit=0.09;
@@ -920,8 +968,10 @@ function buildSpawnUI(){
   mk(document.getElementById('myTeam'), player.team, t=>{ player.team=t; buildSpawnUI(); });
   mk(document.getElementById('spawnTeam'), spawnTeamSel, t=>{ spawnTeamSel=t; buildSpawnUI(); });
   const cnt=document.getElementById('spawnCount'); cnt.innerHTML='';
-  [1,2,3,5].forEach(n=>{ const el=document.createElement('div'); el.className='countChip'+(spawnCountSel===n?' on':''); el.textContent=n;
-    el.onclick=()=>{ spawnCountSel=n; buildSpawnUI(); }; cnt.appendChild(el); });
+  [1,5,10,20].forEach(n=>{ const el=document.createElement('div'); el.className='countChip'+(spawnCountSel===n?' on':''); el.textContent=n;
+    el.onclick=()=>{ spawnCountSel=n; document.getElementById('spawnCountInput').value=n; buildSpawnUI(); }; cnt.appendChild(el); });
+  const inp=document.getElementById('spawnCountInput'); inp.value=spawnCountSel;
+  inp.oninput=()=>{ let v=Math.max(1,Math.min(40,Math.floor(+inp.value||1))); spawnCountSel=v; cnt.querySelectorAll('.countChip').forEach(c=>c.classList.toggle('on',+c.textContent===v)); };
   const wsel=document.getElementById('spawnWeapon'); wsel.innerHTML='';
   arsenal.forEach((g,i)=>{ const o=document.createElement('option'); o.value=i;
     o.textContent=g.name+' ('+(g.kind==='gun'?'gun':g.kind)+')'; wsel.appendChild(o); });
@@ -930,8 +980,9 @@ function buildSpawnUI(){
 }
 document.getElementById('spawnBtn').onclick=()=>{ buildSpawnUI(); document.getElementById('spawnPanel').classList.remove('hide'); };
 document.getElementById('spawnClose').onclick=()=>document.getElementById('spawnPanel').classList.add('hide');
-document.getElementById('doSpawn').onclick=()=>{ spawnBots(spawnTeamSel, JSON.parse(JSON.stringify(arsenal[spawnWeaponIdx])), spawnCountSel);
-  document.getElementById('spawnPanel').classList.add('hide'); toast('Spawned '+spawnCountSel+' '+spawnTeamSel+' fighters'); };
+document.getElementById('doSpawn').onclick=()=>{ const n=Math.max(1,Math.min(40,Math.floor(+document.getElementById('spawnCountInput').value||spawnCountSel)));
+  spawnBots(spawnTeamSel, JSON.parse(JSON.stringify(arsenal[spawnWeaponIdx])), n);
+  document.getElementById('spawnPanel').classList.add('hide'); toast('Spawned '+n+' '+spawnTeamSel+' fighters'); };
 document.getElementById('brawlBtn').onclick=()=>{ clearBots();
   const guns=arsenal.filter(g=>g.kind!=='bomb'); const pick=()=>JSON.parse(JSON.stringify(guns[Math.floor(Math.random()*guns.length)]));
   for(let i=0;i<4;i++) fighters.push(makeFighter('red', pick(), TEAM_BASE.red[0]+rand(-6,6), TEAM_BASE.red[1]+rand(-6,6)));
@@ -1091,7 +1142,7 @@ function hitFighterByBullet(b){
       damageFighter(t, b.dmg, b.team);
       for(let k=0;k<4;k++){ const a=rand(0,6.28); rparts.push({x:b.x,y:b.y,z:b.z,vx:Math.cos(a)*2,vy:rand(0,2),vz:Math.sin(a)*2,life:.2,max:.2,col:b.col,size:0.08}); }
       if(b.incendiary){ t._burn=1.8; t._burnSrc=Math.max(2,Math.round(b.dmg*0.2)); t._burnT=0; }
-      if(b.explosive){ explode(b.x,b.y,b.z, Math.round(b.dmg*0.7), 3.2, b.team); }
+      if(b.explosive){ explode(b.x,b.y,b.z, Math.round(b.dmg*(b.rocket?1:0.7)), b.blast||3.2, b.team); return true; }
       if(b.pierce){ (b.hitset||(b.hitset=new Set())).add(t); return false; }
       return true;
     } }
@@ -1104,10 +1155,13 @@ function updateBullets(dt){
         const k=Math.min(1,4.5*dt); b.vx+=(dx*sp-b.vx)*k; b.vy+=(dy*sp-b.vy)*k; b.vz+=(dz*sp-b.vz)*k;
         const nl=Math.hypot(b.vx,b.vy,b.vz)||1; b.vx=b.vx/nl*sp; b.vy=b.vy/nl*sp; b.vz=b.vz/nl*sp; } }
     b.x+=b.vx*dt; b.y+=b.vy*dt; b.z+=b.vz*dt; b.life-=dt;
+    if(b.rocket){ rparts.push({x:b.x,y:b.y,z:b.z,vx:rand(-0.4,0.4),vy:rand(-0.1,0.4),vz:rand(-0.4,0.4),life:0.4,max:0.4,col:[0.7,0.72,0.78],size:0.16}); } // smoke trail
     if(b.ricochet&&b.bounces>0){ if(b.x<-ARENA||b.x>ARENA){b.vx*=-1;b.bounces--;b.x=clamp(b.x,-ARENA,ARENA);}
       if(b.z<-ARENA||b.z>ARENA){b.vz*=-1;b.bounces--;b.z=clamp(b.z,-ARENA,ARENA);}
       if(b.y<0.1){b.vy*=-1;b.bounces--;b.y=0.1;} }
-    if(b.life<=0||Math.abs(b.x)>ARENA+2||Math.abs(b.z)>ARENA+2||b.y<-1||b.y>WALLH+2){ rbullets.splice(i,1); continue; }
+    // rockets detonate on hitting a wall/floor or expiring
+    if(b.rocket && (b.x<=-ARENA||b.x>=ARENA||b.z<=-ARENA||b.z>=ARENA||b.y<=0.1)){ explode(b.x,clamp(b.y,0.1,3),b.z, b.dmg, b.blast||6, b.team); rbullets.splice(i,1); continue; }
+    if(b.life<=0||Math.abs(b.x)>ARENA+2||Math.abs(b.z)>ARENA+2||b.y<-1||b.y>WALLH+2){ if(b.rocket) explode(b.x,clamp(b.y,0.1,3),b.z,b.dmg,b.blast||6,b.team); rbullets.splice(i,1); continue; }
     if(hitFighterByBullet(b)) rbullets.splice(i,1);
   }
   // burn DoT
@@ -1120,7 +1174,9 @@ function updateBombs(dt,now){
     if(bo.y<=0.2){ bo.y=0.2; bo.vy*=-0.4; bo.vx*=0.6; bo.vz*=0.6; }
     if(Math.abs(bo.x)>ARENA){ bo.vx*=-0.5; bo.x=clamp(bo.x,-ARENA,ARENA); }
     if(Math.abs(bo.z)>ARENA){ bo.vz*=-0.5; bo.z=clamp(bo.z,-ARENA,ARENA); }
-    if(bo.fuse<=0){ explode(bo.x,bo.y,bo.z, bo.dmg, bo.blast, bo.team); rbombs.splice(i,1); }
+    if(bo.fuse<=0){ explode(bo.x,bo.y,bo.z, bo.dmg, bo.blast, bo.team, {incendiary:bo.incendiary});
+      if(bo.cluster){ for(let k=0;k<4;k++){ const a=rand(0,6.28),r=rand(1.5,3.5); explode(bo.x+Math.cos(a)*r, 0.3, bo.z+Math.sin(a)*r, Math.round(bo.dmg*0.6), bo.blast*0.7, bo.team); } }
+      rbombs.splice(i,1); }
   }
 }
 function updateParts(dt){ for(let i=rparts.length-1;i>=0;i--){ const p=rparts[i]; p.x+=p.vx*dt;p.y+=p.vy*dt;p.z+=p.vz*dt; p.vy-=6*dt; p.vx*=0.94;p.vz*=0.94; p.life-=dt; if(p.life<=0) rparts.splice(i,1); } }
@@ -1163,34 +1219,55 @@ function limbMat(px,py,pz,yaw,pitch,len,w,d){
 function drawHumanoid(f){
   const a=f.dead?clamp(1-f.dead/0.7,0,1):1; if(a<=0.02) return;
   const yaw=f.yaw, tc=f.hit>0?[1,1,1]:TEAMS[f.team].col;
-  const dark=[tc[0]*0.72,tc[1]*0.72,tc[2]*0.72], skin=f.hit>0?[1,1,1]:[0.86,0.68,0.54];
+  const dark=[tc[0]*0.62,tc[1]*0.62,tc[2]*0.62], vest=[tc[0]*0.42,tc[1]*0.42,tc[2]*0.42];
+  const skin=f.hit>0?[1,1,1]:[0.84,0.66,0.52], boot=[0.11,0.12,0.15], black=[0.06,0.07,0.09];
   const R=[Math.cos(yaw),0,Math.sin(yaw)], Fw=[Math.sin(yaw),0,-Math.cos(yaw)];
   const wp=(lx,ly,lz)=>[f.x+R[0]*lx+Fw[0]*lz, ly, f.z+R[2]*lx+Fw[2]*lz];
-  const ph=f.walk||0, sink=f.dead?Math.min(0.7,f.dead*1.1):0, bob=f.dead?0:Math.abs(Math.sin(ph))*0.03;
+  const ph=f.walk||0, sink=f.dead?Math.min(0.75,f.dead*1.1):0, bob=f.dead?0:Math.abs(Math.sin(ph))*0.03;
   const y=(v)=>v-sink+bob;
-  const swing=f.dead?0:Math.sin(ph)*0.5;
-  // legs (swing opposite)
-  let p=wp(-0.11,y(0.92),0); draw(CUBE, limbMat(p[0],p[1],p[2],yaw, swing,0.9,0.15,0.17), dark, false, a);
-  p=wp(0.11,y(0.92),0);     draw(CUBE, limbMat(p[0],p[1],p[2],yaw,-swing,0.9,0.15,0.17), dark, false, a);
-  // pelvis + torso (tapered: chest wider)
-  draw(CUBE, m4.modelYaw(...wp(0,y(0.98),0), 0.42,0.22,0.26, yaw), dark, false, a);
-  draw(CUBE, m4.modelYaw(...wp(0,y(1.28),0), 0.5,0.5,0.3, yaw), tc, false, a);
-  // shoulders pad
-  draw(CUBE, m4.modelYaw(...wp(0,y(1.52),0), 0.62,0.14,0.32, yaw), dark, false, a);
-  // head + neck
-  draw(CUBE, m4.modelYaw(...wp(0,y(1.55),0), 0.12,0.1,0.12, yaw), skin, false, a);
-  draw(SPHERE, m4.model(...wp(0,y(1.72),0.02), 0.17,0.19,0.17), skin, false, a);
-  // helmet
-  draw(SPHERE, m4.model(...wp(0,y(1.78),0), 0.19,0.13,0.19), dark, false, a);
-  // arms: front (weapon) arm raised forward; rear arm swings with walk
-  let s=wp(-0.31,y(1.48),0); draw(CUBE, limbMat(s[0],s[1],s[2],yaw,-swing,0.62,0.13,0.13), tc, false, a); // left arm swings
-  s=wp(0.31,y(1.48),0);      draw(CUBE, limbMat(s[0],s[1],s[2],yaw,-1.35,0.6,0.13,0.13), tc, false, a);   // right arm forward on weapon
+  const sw=f.dead?0:Math.sin(ph)*0.5;
+  // end point of a limb segment hanging from pivot at given pitch
+  const segEnd=(px,py,pz,pitch,len)=>[px+len*Math.sin(pitch)*Fw[0], py-len*Math.cos(pitch), pz+len*Math.sin(pitch)*Fw[2]];
+  // ---- legs: thigh + shin + boot ----
+  for(const sgn of [-1,1]){
+    const hip=wp(sgn*0.12,y(0.9),0), tp=sgn*sw, Lt=0.46, Ls=0.44;
+    draw(CUBE, limbMat(hip[0],hip[1],hip[2],yaw,tp,Lt,0.16,0.18), dark, false, a);
+    const knee=segEnd(hip[0],hip[1],hip[2],tp,Lt); const spt=tp+0.28+0.18*Math.max(0,-sgn*Math.sin(ph));
+    draw(CUBE, limbMat(knee[0],knee[1],knee[2],yaw,spt,Ls,0.14,0.15), dark, false, a);
+    const foot=segEnd(knee[0],knee[1],knee[2],spt,Ls);
+    draw(CUBE, m4.modelYaw(foot[0]+Fw[0]*0.05,foot[1]+0.02,foot[2]+Fw[2]*0.05, 0.16,0.11,0.3, yaw), boot, false, a);
+  }
+  // ---- torso: pelvis, chest, vest overlay, belt, backpack ----
+  draw(CUBE, m4.modelYaw(...wp(0,y(0.95),0), 0.4,0.24,0.26, yaw), dark, false, a);
+  draw(CUBE, m4.modelYaw(...wp(0,y(1.12),0), 0.44,0.12,0.28, yaw), black, false, a); // belt
+  draw(CUBE, m4.modelYaw(...wp(0,y(1.3),0), 0.5,0.52,0.3, yaw), tc, false, a);               // chest
+  draw(CUBE, m4.modelYaw(...wp(0,y(1.3),0.03), 0.44,0.44,0.3, yaw), vest, false, a);          // tactical vest
+  draw(CUBE, m4.modelYaw(...wp(0,y(1.32),-0.2), 0.34,0.4,0.16, yaw), dark, false, a);         // backpack
+  draw(CUBE, m4.modelYaw(...wp(0,y(1.56),0), 0.62,0.15,0.34, yaw), dark, false, a);           // shoulders
+  // ---- arms: upper + forearm + hand (front arm holds weapon) ----
+  for(const sgn of [-1,1]){
+    const sh=wp(sgn*0.31,y(1.5),0);
+    const up = sgn>0 ? -1.15 : (-sw*0.7);           // right(+) arm forward, left swings
+    const Lu=0.32, Lf=0.3;
+    draw(CUBE, limbMat(sh[0],sh[1],sh[2],yaw,up,Lu,0.12,0.13), tc, false, a);
+    const el=segEnd(sh[0],sh[1],sh[2],up,Lu); const fp = sgn>0 ? -1.55 : (up+0.4);
+    draw(CUBE, limbMat(el[0],el[1],el[2],yaw,fp,Lf,0.11,0.11), tc, false, a);
+    const hand=segEnd(el[0],el[1],el[2],fp,Lf);
+    draw(SPHERE, m4.model(hand[0],hand[1],hand[2], 0.08,0.09,0.08), skin, false, a);
+  }
+  // ---- head: neck, face, eyes, helmet + brim ----
+  draw(CUBE, m4.modelYaw(...wp(0,y(1.58),0), 0.13,0.1,0.13, yaw), skin, false, a);
+  draw(SPHERE, m4.model(...wp(0,y(1.73),0.01), 0.16,0.18,0.16), skin, false, a);
+  draw(CUBE, m4.modelYaw(...wp(-0.06,y(1.74),0.13), 0.05,0.04,0.03, yaw), black, false, a);   // eyes
+  draw(CUBE, m4.modelYaw(...wp( 0.06,y(1.74),0.13), 0.05,0.04,0.03, yaw), black, false, a);
+  draw(SPHERE, m4.model(...wp(0,y(1.8),0), 0.185,0.13,0.185), dark, false, a);                // helmet
+  draw(CUBE, m4.modelYaw(...wp(0,y(1.74),0.12), 0.34,0.05,0.12, yaw), dark, false, a);        // brim
   // weapon in hands
   drawHeldWeapon(f, wp, y, yaw, Fw, R, a);
   // hp bar above head
-  if(!f.dead){ const r=clamp(f.hp/f.maxhp,0,1); const hb=wp(0,2.15,0);
+  if(!f.dead){ const r=clamp(f.hp/f.maxhp,0,1); const hb=wp(0,2.2,0);
     draw(CUBE, m4.model(hb[0],hb[1],hb[2], 0.9,0.13,0.06), [0.05,0.05,0.08], true, 0.85);
-    const fillW=Math.max(0.001,0.84*r); const off=wp(-(0.84*(1-r))/2,2.15,0.001);
+    const fillW=Math.max(0.001,0.84*r); const off=wp(-(0.84*(1-r))/2,2.2,0.001);
     draw(CUBE, m4.model(off[0],off[1],off[2], fillW,0.13,0.07), [1-0.9*r,0.25+0.7*r,0.3], true, 1); }
 }
 function drawHeldWeapon(f,wp,y,yaw,Fw,R,a){
@@ -1230,7 +1307,7 @@ function battleRender(now){
   for(const b of rbullets){ draw(SPHERE, m4.model(b.x,b.y,b.z, b.r,b.r,b.r), b.col, true, b.sil?0.7:1); }
   // bombs
   for(const bo of rbombs){ const blink=(Math.sin(now/60)>0)?1:0.4;
-    draw(SPHERE, m4.model(bo.x,bo.y,bo.z, 0.22,0.22,0.22), [0.12,0.14,0.2], false, 1);
+    draw(SPHERE, m4.model(bo.x,bo.y,bo.z, 0.22,0.22,0.22), bo.col||[0.12,0.14,0.2], false, 1);
     draw(SPHERE, m4.model(bo.x,bo.y+0.22,bo.z, 0.07,0.07,0.07), [1,0.4*blink,0.2*blink], true, 1); }
   // slashes (melee arcs)
   for(const s of slashes){ const a=clamp(s.life/s.max,0,1); const fw=fighterFwd(s.yaw);
@@ -1238,16 +1315,40 @@ function battleRender(now){
   // particles
   for(const p of rparts){ const a=clamp(p.life/p.max,0,1); draw(SPHERE, m4.model(p.x,p.y,p.z, p.size,p.size,p.size), p.col, true, a); }
 
-  // held viewmodel (guns only)
-  if(equipped && equipped.kind==='gun' && !player.dead){ const gcol=hexRGB(gunColor(equipped));
-    const rdx=Math.cos(cam.yaw),rdz=Math.sin(cam.yaw);
-    const Ux=-rdz*d[1], Uy=rdz*d[0]-rdx*d[2], Uz=rdx*d[1]; const ul=Math.hypot(Ux,Uy,Uz)||1; const U=[Ux/ul,Uy/ul,Uz/ul];
-    let ax=d[0]*0.82-rdx*0.35, ay=d[1]*0.82, az=d[2]*0.82-rdz*0.35; const al=Math.hypot(ax,ay,az)||1; ax/=al;ay/=al;az/=al;
-    const gx=EYE[0]+d[0]*0.85+rdx*0.30-U[0]*0.30, gy=EYE[1]+d[1]*0.85-U[1]*0.30, gz=EYE[2]+d[2]*0.85+rdz*0.30-U[2]*0.30;
-    const bl=0.30, bt=0.045;
-    draw(CUBE, [ax*bl,ay*bl,az*bl,0, U[0]*bt,U[1]*bt,U[2]*bt,0, rdx*bt,0,rdz*bt,0, gx,gy,gz,1], gcol, false, 1);
-    if(equipped.sil) draw(CUBE, [ax*0.12,ay*0.12,az*0.12,0, U[0]*0.05,U[1]*0.05,U[2]*0.05,0, rdx*0.05,0,rdz*0.05,0, gx+ax*0.34,gy+ay*0.34,gz+az*0.34,1], [0.2,0.22,0.3], false, 1);
-    if(muzzle>0 && !equipped.sil) draw(SPHERE, m4.model(gx+ax*0.32,gy+ay*0.32,gz+az*0.32, 0.09,0.09,0.09), [1,0.96,0.75], true, 1);
+  // held viewmodel — a realistic weapon built from oriented boxes in first person
+  if(equipped && !player.dead){
+    const F=d, up=[0,1,0];
+    let Rv=[-F[2],0,F[0]]; const rl=Math.hypot(Rv[0],Rv[1],Rv[2])||1; Rv=[Rv[0]/rl,Rv[1]/rl,Rv[2]/rl];
+    const Uv=[Rv[1]*F[2]-Rv[2]*F[1], Rv[2]*F[0]-Rv[0]*F[2], Rv[0]*F[1]-Rv[1]*F[0]];
+    const P=(oF,oU,oR)=>[EYE[0]+F[0]*oF+Uv[0]*oU+Rv[0]*oR, EYE[1]+F[1]*oF+Uv[1]*oU+Rv[1]*oR, EYE[2]+F[2]*oF+Uv[2]*oU+Rv[2]*oR];
+    const M=(pos,wR,wU,lenF)=>[Rv[0]*wR,Rv[1]*wR,Rv[2]*wR,0, Uv[0]*wU,Uv[1]*wU,Uv[2]*wU,0, F[0]*lenF,F[1]*lenF,F[2]*lenF,0, pos[0],pos[1],pos[2],1];
+    const gcol=hexRGB(gunColor(equipped)), steel=[0.82,0.87,0.97], dark=[0.2,0.22,0.3], hand=[0.86,0.68,0.54];
+    const kick=muzzle>0?0.05:0; const bF=0.72-kick, bU=-0.30, bR=0.24;
+    if(equipped.kind==='melee'){
+      draw(CUBE, M(P(bF+0.05,bU+0.04,bR), 0.045,0.05,0.55), gcol, false, 1);        // blade
+      draw(CUBE, M(P(bF-0.26,bU,bR), 0.06,0.1,0.14), [0.24,0.18,0.12], false, 1);    // handle
+      draw(SPHERE, m4.model(...P(bF-0.18,bU,bR),0.08,0.09,0.08), hand, false, 1);     // hand
+    } else if(equipped.kind==='bomb'){
+      draw(SPHERE, m4.model(...P(bF-0.12,bU+0.06,bR), 0.13,0.13,0.13), [0.18,0.24,0.18], false, 1);
+      draw(SPHERE, m4.model(...P(bF-0.22,bU+0.02,bR),0.09,0.1,0.09), hand, false, 1);
+    } else if(equipped.rpg){
+      draw(CUBE, M(P(bF+0.06,bU,bR), 0.13,0.13,0.64), gcol, false, 1);               // tube
+      draw(SPHERE, m4.model(...P(bF+0.44,bU,bR), 0.13,0.13,0.18), gcol, false, 1);     // warhead
+      draw(CUBE, M(P(bF-0.34,bU,bR), 0.17,0.17,0.14), dark, false, 1);               // rear flare
+      draw(CUBE, M(P(bF-0.06,bU-0.17,bR), 0.06,0.16,0.08), dark, false, 1);          // grip
+      draw(SPHERE, m4.model(...P(bF-0.06,bU-0.08,bR),0.08,0.09,0.08), hand, false, 1);
+    } else { // gun
+      draw(CUBE, M(P(bF-0.24,bU+0.01,bR), 0.08,0.12,0.22), dark, false, 1);          // stock
+      draw(CUBE, M(P(bF,bU,bR), 0.09,0.12,0.36), gcol, false, 1);                    // receiver
+      draw(CUBE, M(P(bF+0.32,bU+0.006,bR), 0.05,0.05,0.36), steel, false, 1);        // barrel
+      draw(CUBE, M(P(bF-0.02,bU-0.16,bR), 0.07,0.19,0.09), gcol, false, 1);          // magazine
+      draw(CUBE, M(P(bF-0.13,bU-0.15,bR), 0.07,0.17,0.08), dark, false, 1);          // grip
+      draw(SPHERE, m4.model(...P(bF-0.1,bU-0.06,bR),0.07,0.08,0.07), hand, false, 1); // trigger hand
+      draw(CUBE, M(P(bF+0.03,bU+0.10,bR), 0.03,0.05,0.07), dark, false, 1);          // sight
+      if(equipped.sil) draw(CUBE, M(P(bF+0.55,bU+0.006,bR), 0.1,0.1,0.2), dark, false, 1);
+    }
+    const mz=P(bF+(equipped.rpg?0.4:0.52),bU+0.006,bR);
+    if(muzzle>0 && !equipped.sil) draw(SPHERE, m4.model(mz[0],mz[1],mz[2], 0.1,0.1,0.1), [1,0.96,0.75], true, 1);
   }
 
   // crosshair reload/muzzle + hurt vignette

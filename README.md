@@ -55,17 +55,23 @@ Fuse them** into one hybrid: its stats blend and its traits (explosive, homing,
 pierce, scatter, burst, incendiary, ricochet…) combine, and cross-type fusions
 graft on extra abilities (a gun that also swings a **+Blade** and lobs a **+Boom**).
 Bolt a **🔇 silencer** or a **💥 boom-launcher** onto any gun for combos like
-*Silenced Rifle +Boom*. Base weapons include **guns, knives, swords (Katana) and
-throwable bombs**.
+*Silenced Rifle +Boom*. Base weapons include lots of **guns** (plus an **RPG**
+that fires explosive rockets), **knives & swords** (Knife, Dagger, Machete,
+Cleaver, Rapier, Katana, Greatsword) and **throwable bombs** (Frag, Sticky,
+Cluster, Molotov, Dynamite, MegaNuke).
 
 **⚔️ Arena — a true 3D first-person team battle.** Rendered with inline WebGL
 (no external libraries — still one offline file). Press **＋ Spawn** to drop
-fighters onto colored teams and hand them any weapon; they walk, aim, shoot,
-throw bombs and swing blades. Every team attacks every other team — **including
-you** — and the **last team standing wins** (no friendly fire). Hit **⚔️
-Auto-brawl** to pit Red vs Green and watch them fight. Weapon traits play out in
-3D: homing rounds curve after targets, pierce shots pass through, explosives and
-bombs blast an area, ricochets bounce off walls.
+fighters onto colored teams — **type in exactly how many you want** (up to 40 per
+spawn) — and hand them any weapon. The fighters are **detailed humanoid
+soldiers** (helmets, vests, backpacks, articulated arms and legs with a walk
+cycle) that walk, aim, shoot, launch rockets, throw bombs and swing blades. Every
+team attacks every other team — **including you** — and the **last team standing
+wins** (no friendly fire). Hit **⚔️ Auto-brawl** to pit Red vs Green and watch
+them fight to a winner. Weapon traits play out in 3D: homing rounds curve after
+targets, pierce shots pass through, explosives, rockets and bombs blast an area,
+ricochets bounce off walls. Your held weapon is drawn in first person to match
+what you're carrying.
 
 - **Desktop:** click the arena to capture the mouse, **WASD** move, **mouse**
   look/aim, **click/Space** fire, **R** reload, **G** bomb, **V** melee, **Esc**
