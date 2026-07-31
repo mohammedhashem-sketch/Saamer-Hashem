@@ -133,6 +133,35 @@
     display:flex;align-items:flex-start;justify-content:center;color:rgba(142,160,200,.28);
     font-size:13px;font-weight:800;padding-top:8px;}
 
+  /* battle HUD */
+  #hpBar{width:150px;height:10px;border-radius:6px;background:#33203a;overflow:hidden;margin-top:5px;}
+  #hpFill{height:100%;width:100%;background:linear-gradient(90deg,#ff5a6a,#ffce54,#5fe08a);transition:width .12s linear;}
+  #curgun{min-width:120px;} #ammoLine{margin-top:4px;color:var(--gold);}
+  #scoreboard .v{line-height:1.35;}
+  #winBanner{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);z-index:12;text-align:center;
+    font-weight:900;font-size:34px;color:#fff;text-shadow:0 4px 24px rgba(0,0,0,.6);pointer-events:none;white-space:nowrap;}
+  #winBanner small{display:block;font-size:15px;font-weight:700;color:var(--muted);margin-top:6px;}
+  .actBtn{position:absolute;width:66px;height:66px;border-radius:50%;background:rgba(30,40,70,.6);
+    border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:26px;pointer-events:auto;}
+  #meleeBtn{right:135px;bottom:120px;} #bombBtn{right:44px;bottom:150px;}
+
+  /* spawn panel */
+  #spawnPanel{position:absolute;inset:0;z-index:15;display:flex;align-items:center;justify-content:center;
+    background:rgba(6,10,22,.78);backdrop-filter:blur(4px);padding:16px;}
+  .sp-card{background:linear-gradient(180deg,#171f3b,#111731);border:1px solid var(--line);border-radius:18px;
+    padding:18px;max-width:420px;width:100%;box-shadow:0 24px 70px rgba(0,0,0,.55);}
+  .sp-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-size:17px;}
+  .sp-row{display:flex;align-items:center;gap:10px;margin:9px 0;}
+  .sp-lbl{width:92px;color:var(--muted);font-size:13px;font-weight:700;flex-shrink:0;}
+  .sp-sel{flex:1;background:#0d1428;border:1px solid var(--line);color:var(--ink);border-radius:10px;
+    padding:9px 10px;font-size:14px;font-weight:700;}
+  .teamPick{display:flex;gap:8px;flex-wrap:wrap;} .countPick{display:flex;gap:6px;}
+  .teamChip{width:34px;height:34px;border-radius:9px;cursor:pointer;border:2px solid transparent;}
+  .teamChip.on{border-color:#fff;box-shadow:0 0 0 2px rgba(255,255,255,.25);}
+  .countChip{min-width:38px;padding:8px 10px;border-radius:9px;background:#0d1428;border:1px solid var(--line);
+    color:var(--ink);font-weight:800;cursor:pointer;text-align:center;}
+  .countChip.on{background:linear-gradient(180deg,#7ad4ff,#39b4f5);color:#04122a;border-color:transparent;}
+
   #toast{position:fixed;top:64px;left:50%;transform:translateX(-50%);z-index:50;
     background:rgba(20,27,51,.92);border:1px solid var(--line);border-radius:12px;padding:9px 15px;
     font-weight:800;font-size:14px;opacity:0;transition:opacity .25s;pointer-events:none;}
@@ -147,7 +176,7 @@
   <div class="logo">Gun <span class="g">Forge</span></div>
   <div class="spacer"></div>
   <button class="tab on" id="tabForge">🔧 Workshop</button>
-  <button class="tab" id="tabRange">🎯 Sandbox</button>
+  <button class="tab" id="tabRange">⚔️ Arena</button>
 </div>
 
 <!-- ===================== WORKSHOP ===================== -->
@@ -176,27 +205,48 @@
 <div class="screen hide" id="sandbox">
   <canvas id="range"></canvas>
   <div id="rangeHud">
-    <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <div class="hudbox" id="curgun"><div class="lbl">Testing</div><div class="v" id="curgunName">—</div></div>
-      <div class="hudbox" id="dps"><div class="lbl">Peak DPS</div><div class="v" id="dpsVal">0</div></div>
-      <div class="hudbox"><div class="lbl">Ammo</div><div class="v"><span id="magVal">0</span>/<span id="magMax">0</span></div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start;">
+      <div class="hudbox" id="hpBox"><div class="lbl">Health</div><div id="hpBar"><div id="hpFill"></div></div></div>
+      <div class="hudbox" id="curgun"><div class="lbl" id="wpnKind">Weapon</div><div class="v" id="curgunName">—</div>
+        <div class="lbl" id="ammoLine"><span id="magVal">0</span>/<span id="magMax">0</span></div></div>
+      <div class="hudbox" id="scoreboard"><div class="lbl">Teams alive</div><div class="v" id="teamCounts" style="font-size:14px;">—</div></div>
     </div>
     <div class="right">
-      <button class="btn blue sm" id="pickGunBtn">Switch gun</button>
-      <button class="btn ghost sm" id="resetTargets">Reset targets</button>
+      <button class="btn sm" id="spawnBtn" style="background:linear-gradient(180deg,#7ce0a2,#3fcf7d);color:#04122a;">＋ Spawn</button>
+      <button class="btn blue sm" id="pickGunBtn">Weapon</button>
+      <button class="btn ghost sm" id="clearBots">Clear</button>
     </div>
   </div>
   <div id="crosshair"></div>
-  <div id="lockHint" class="desktopOnly">Click to look around · <b>WASD</b> move · <b>mouse</b> aim · <b>click/Space</b> fire · <b>R</b> reload · <b>Esc</b> release</div>
+  <div id="winBanner" class="hide"></div>
+  <div id="lockHint" class="desktopOnly">Click to look · <b>WASD</b> move · <b>mouse</b> aim · <b>click/Space</b> fire · <b>R</b> reload · <b>G</b> bomb · <b>V</b> melee · <b>Esc</b> release</div>
   <div id="tcontrols">
     <div id="stick"><div id="nub"></div></div>
     <div id="lookpad" class="touchOnly">drag to look</div>
+    <div id="meleeBtn" class="touchOnly actBtn">🔪</div>
+    <div id="bombBtn" class="touchOnly actBtn">💣</div>
     <div id="fireBtn">FIRE</div>
   </div>
+
+  <!-- Spawn panel -->
+  <div id="spawnPanel" class="hide">
+    <div class="sp-card">
+      <div class="sp-head"><b>Spawn fighters</b><button id="spawnClose" class="btn ghost sm">✕</button></div>
+      <div class="sp-row"><span class="sp-lbl">Your team</span><div id="myTeam" class="teamPick"></div></div>
+      <div class="sp-row"><span class="sp-lbl">Add to team</span><div id="spawnTeam" class="teamPick"></div></div>
+      <div class="sp-row"><span class="sp-lbl">Weapon</span>
+        <select id="spawnWeapon" class="sp-sel"></select></div>
+      <div class="sp-row"><span class="sp-lbl">How many</span><div id="spawnCount" class="countPick"></div></div>
+      <button class="btn" id="doSpawn" style="width:100%;margin-top:4px;">＋ Spawn them</button>
+      <button class="btn blue" id="brawlBtn" style="width:100%;margin-top:8px;">⚔️ Auto-brawl: Red vs Green</button>
+      <p style="color:var(--muted);font-size:12px;margin:10px 2px 0;">Fighters attack every other team — including you. Last team standing wins. No friendly fire.</p>
+    </div>
+  </div>
+
   <div id="noGun" class="hide">
     <div class="card">
-      <h2>No gun equipped</h2>
-      <p class="sub">Head to the Workshop and press 🎯 on a gun to bring it here.</p>
+      <h2>No weapon equipped</h2>
+      <p class="sub">Go to the Workshop and press 🎯 on a weapon to carry it into the arena, then use ＋ Spawn to start a battle.</p>
       <button class="btn blue" id="goForge">Go to Workshop</button>
     </div>
   </div>
@@ -254,8 +304,11 @@ const TRAITS = {
 const TIER_COL = ['#8ea0c8','#5fe08a','#4cc3ff','#c6a0ff','#ffce54','#ff9a5a','#ff5a6a','#ff5ad5'];
 const TIER_NAME = ['Stock','Tier 2','Tier 3','Tier 4','Tier 5','Legendary','Mythic','Godgun'];
 
-// ---------- Base guns ----------
-function G(o){ return Object.assign({tier:0, pellets:1, traits:[]}, o); }
+// ---------- Base weapons ----------
+// kind: 'gun' (ranged) | 'melee' (sword/knife) | 'bomb' (throwable)
+function G(o){ return Object.assign({kind:'gun', tier:0, pellets:1, traits:[], sil:false, launcher:false}, o); }
+function M(o){ return Object.assign({kind:'melee', tier:0, traits:[]}, o); }        // reach, arc(half-angle), swing(ms), dmg
+function B(o){ return Object.assign({kind:'bomb', tier:0, traits:[]}, o); }          // dmg, blast(radius), fuse(ms), throw(speed)
 const BASE = [
   G({name:'Pistol',   dmg:24, rof:260, mag:12, reload:750,  spread:0.03, speed:640, traits:[]}),
   G({name:'SMG',      dmg:13, rof:80,  mag:30, reload:1100, spread:0.11, speed:700, traits:['rapid']}),
@@ -266,6 +319,9 @@ const BASE = [
   G({name:'Burster',  dmg:18, rof:340, mag:24, reload:1050, spread:0.04, speed:720, traits:['burst']}),
   G({name:'Torch',    dmg:9,  rof:110, mag:26, reload:1100, spread:0.09, speed:640, traits:['incendiary']}),
   G({name:'Hemlock',  dmg:30, rof:120, mag:27, reload:1150, spread:0.015,speed:900, traits:['burst','rapid']}),
+  M({name:'Knife',    dmg:42, reach:2.4, arc:0.7, swing:320}),
+  M({name:'Katana',   dmg:85, reach:3.4, arc:1.0, swing:620}),
+  B({name:'Frag',     dmg:75, blast:5.2, fuse:1400, throw:17}),
 ];
 
 // ---------- Persistent arsenal ----------
@@ -300,26 +356,42 @@ function fuseName(a,b){
 }
 function fuse(a,b){
   const avg=(x,y)=>(x+y)/2;
-  const child = {
-    uid: uid(),
-    dmg: Math.round(avg(a.dmg,b.dmg)*1.10),
-    rof: Math.max(35, Math.round(avg(a.rof,b.rof)*0.93)),
-    mag: Math.max(3, Math.round(avg(a.mag,b.mag)*1.08)),
-    reload: Math.max(400, Math.round(avg(a.reload,b.reload)*0.96)),
-    spread: Math.max(0.005, avg(a.spread,b.spread)*0.94),
-    speed: Math.round(avg(a.speed,b.speed)*1.05),
-    pellets: Math.max(a.pellets, b.pellets) + ((a.pellets>1&&b.pellets>1)?1:0),
-    tier: Math.max(a.tier,b.tier)+1,
-    traits: [],
-  };
-  // union traits, cap 4, keep variety
-  let t=[...new Set([...a.traits,...b.traits])];
-  // small chance to mutate a brand-new trait in
+  let child;
+  if(a.kind==='melee'){
+    child={ uid:uid(), kind:'melee', dmg:Math.round(avg(a.dmg,b.dmg)*1.10),
+      reach:+(avg(a.reach,b.reach)*1.03).toFixed(2), arc:+avg(a.arc,b.arc).toFixed(2),
+      swing:Math.max(160,Math.round(avg(a.swing,b.swing)*0.93)), tier:Math.max(a.tier,b.tier)+1, traits:[] };
+  } else if(a.kind==='bomb'){
+    child={ uid:uid(), kind:'bomb', dmg:Math.round(avg(a.dmg,b.dmg)*1.10),
+      blast:+(avg(a.blast,b.blast)*1.08).toFixed(1), fuse:Math.max(500,Math.round(avg(a.fuse,b.fuse)*0.95)),
+      throw:Math.round(avg(a.throw,b.throw)*1.05), tier:Math.max(a.tier,b.tier)+1, traits:[] };
+  } else {
+    child={ uid:uid(), kind:'gun',
+      dmg:Math.round(avg(a.dmg,b.dmg)*1.10), rof:Math.max(35,Math.round(avg(a.rof,b.rof)*0.93)),
+      mag:Math.max(3,Math.round(avg(a.mag,b.mag)*1.08)), reload:Math.max(400,Math.round(avg(a.reload,b.reload)*0.96)),
+      spread:Math.max(0.005,avg(a.spread,b.spread)*0.94), speed:Math.round(avg(a.speed,b.speed)*1.05),
+      pellets:Math.max(a.pellets,b.pellets)+((a.pellets>1&&b.pellets>1)?1:0), tier:Math.max(a.tier,b.tier)+1,
+      sil:!!(a.sil||b.sil), launcher:!!(a.launcher||b.launcher), traits:[] };
+  }
+  // union traits, cap 4, small chance to mutate a new one in
+  let t=[...new Set([...(a.traits||[]),...(b.traits||[])])];
   if(Math.random()<0.22){ const all=Object.keys(TRAITS); const nt=all[Math.floor(Math.random()*all.length)]; if(!t.includes(nt)) t.push(nt); }
   while(t.length>4){ t.splice(Math.floor(Math.random()*t.length),1); }
   child.traits=t;
   child.name=fuseName(a,b);
+  if(child.sil && !/silenc/i.test(child.name)) child.name='Silenced '+child.name;
+  if(child.launcher && !/boom/i.test(child.name)) child.name=child.name+' +Boom';
   return child;
+}
+// Attachment crafters: make a new variant with a silencer or an underbarrel boom-launcher.
+function attachSilencer(g){
+  const c=JSON.parse(JSON.stringify(g)); c.uid=uid(); c.sil=true;
+  c.dmg=Math.max(1,Math.round(g.dmg*0.92)); c.spread=Math.max(0.004,g.spread*0.7); c.speed=Math.round(g.speed*1.02);
+  c.name=/silenc/i.test(g.name)?g.name:'Silenced '+g.name; return c;
+}
+function attachLauncher(g){
+  const c=JSON.parse(JSON.stringify(g)); c.uid=uid(); c.launcher=true;
+  c.name=/boom/i.test(g.name)?g.name:g.name+' +Boom'; return c;
 }
 
 // ---------- Gun drawing ----------
@@ -332,6 +404,8 @@ function drawGun(cv, g, scale){
   const cx=w*0.5, cy=h*0.58;
   const s=(scale||1)*(w/180);
   ctx.save(); ctx.translate(cx,cy); ctx.scale(s,s);
+  if(g.kind==='melee'){ drawBlade(ctx,g,col); ctx.restore(); return; }
+  if(g.kind==='bomb'){ drawBomb(ctx,g,col); ctx.restore(); return; }
   // derive shape from stats
   const barrelLen = 26 + g.speed/26;                 // faster bullet -> longer barrel
   const barrelTh  = 5 + Math.min(14, g.dmg/6);       // damage -> thicker barrel
@@ -356,31 +430,63 @@ function drawGun(cv, g, scale){
   ctx.fillStyle='#39435f'; ctx.save(); ctx.translate(-bodyW/2+10,bodyH/2-1); ctx.rotate(0.28); rr(ctx,0,0,10,magH*0.8,3); ctx.fill(); ctx.restore();
   // sight for pierce/homing
   if(g.traits.includes('pierce')||g.traits.includes('homing')){ ctx.fillStyle='#c7d4ee'; rr(ctx,bodyW/2-8,-bodyH/2-6,4,7,1); ctx.fill(); }
+  // silencer barrel tip
+  if(g.sil){ ctx.fillStyle='#2a3350'; rr(ctx,bodyW/2-2+barrelLen,-barrelTh/2-2,14,barrelTh+4,3); ctx.fill(); }
+  // underbarrel launcher
+  if(g.launcher){ ctx.fillStyle='#ff8a4a'; rr(ctx,bodyW/2+6,barrelTh/2+1,16,7,3); ctx.fill(); }
   ctx.restore();
+}
+function drawBlade(ctx,g,col){
+  const len=26+Math.min(34,g.reach*10), th=4+Math.min(9,g.dmg/12);
+  ctx.rotate(-0.5);
+  // handle
+  ctx.fillStyle='#39435f'; rr(ctx,-len/2-14,-3.5,16,7,2); ctx.fill();
+  // guard
+  ctx.fillStyle='#8a93ad'; rr(ctx,-len/2,-7,5,14,2); ctx.fill();
+  // blade
+  ctx.fillStyle=col; ctx.beginPath(); ctx.moveTo(-len/2+5,-th/2); ctx.lineTo(len/2,-th*0.2); ctx.lineTo(len/2+8,0); ctx.lineTo(len/2,th*0.2); ctx.lineTo(-len/2+5,th/2); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,.35)'; ctx.beginPath(); ctx.moveTo(-len/2+5,-th/2); ctx.lineTo(len/2,-th*0.2); ctx.lineTo(len/2,0); ctx.lineTo(-len/2+5,0); ctx.closePath(); ctx.fill();
+}
+function drawBomb(ctx,g,col){
+  const r=10+Math.min(16,g.blast*2);
+  ctx.fillStyle='#1e2740'; ctx.beginPath(); ctx.arc(0,4,r,0,6.28); ctx.fill();
+  ctx.fillStyle=col; ctx.beginPath(); ctx.arc(-r*0.3,4-r*0.3,r*0.35,0,6.28); ctx.fill();
+  // cap + fuse
+  ctx.fillStyle='#39435f'; rr(ctx,-4,4-r-5,8,7,2); ctx.fill();
+  ctx.strokeStyle='#ffb14a'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(0,4-r-4); ctx.quadraticCurveTo(10,4-r-14,4,4-r-18); ctx.stroke();
+  ctx.fillStyle='#ffd76a'; ctx.beginPath(); ctx.arc(4,4-r-18,2.5,0,6.28); ctx.fill();
 }
 function rr(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
 
 // ---------- Stat bar rendering ----------
-const STAT_MAX={dmg:120,fire:1,mag:60,speed:1100,pellets:12};
+const STAT_MAX={dmg:180,fire:1,mag:60,speed:1100,pellets:12,reach:8,blast:12};
 function statBars(g){
-  const fireScore = 1 - Math.min(1,(g.rof-35)/900); // higher = faster
-  const rows=[
-    ['DMG', Math.min(1,g.dmg/STAT_MAX.dmg)],
-    ['Rate', fireScore],
-    ['Mag', Math.min(1,g.mag/STAT_MAX.mag)],
-    ['Speed', Math.min(1,g.speed/STAT_MAX.speed)],
-  ];
-  if(g.pellets>1) rows.push(['Pellets', Math.min(1,g.pellets/STAT_MAX.pellets)]);
+  let rows;
+  if(g.kind==='melee'){ rows=[['DMG',Math.min(1,g.dmg/STAT_MAX.dmg)],['Reach',Math.min(1,g.reach/STAT_MAX.reach)],
+      ['Speed',1-Math.min(1,(g.swing-160)/700)],['Arc',Math.min(1,g.arc/1.4)]]; }
+  else if(g.kind==='bomb'){ rows=[['DMG',Math.min(1,g.dmg/STAT_MAX.dmg)],['Blast',Math.min(1,g.blast/STAT_MAX.blast)],
+      ['Fuse',1-Math.min(1,(g.fuse-500)/1500)],['Throw',Math.min(1,g.throw/26)]]; }
+  else { const fireScore=1-Math.min(1,(g.rof-35)/900);
+    rows=[['DMG',Math.min(1,g.dmg/STAT_MAX.dmg)],['Rate',fireScore],['Mag',Math.min(1,g.mag/STAT_MAX.mag)],['Speed',Math.min(1,g.speed/STAT_MAX.speed)]];
+    if(g.pellets>1) rows.push(['Pellets',Math.min(1,g.pellets/STAT_MAX.pellets)]); }
   let html='<div class="stats">';
   for(const [k,v] of rows){ html+=`<span class="k">${k}</span><span class="bar"><i style="width:${Math.round(v*100)}%"></i></span>`; }
   return html+'</div>';
 }
 function traitChips(g){
-  if(!g.traits.length) return '<div class="traits"><span class="trait" style="border-color:#33405f;color:#8ea0c8">Standard</span></div>';
-  return '<div class="traits">'+g.traits.map(t=>{
-    const d=TRAITS[t]; if(!d) return '';
-    return `<span class="trait" style="color:${d.col};border-color:${d.col}55" title="${d.desc}">${d.label}</span>`;
-  }).join('')+'</div>';
+  let chips=[];
+  if(g.kind==='melee') chips.push(`<span class="trait" style="color:#ff9a5a;border-color:#ff9a5a55">Melee</span>`);
+  if(g.kind==='bomb')  chips.push(`<span class="trait" style="color:#ff5a6a;border-color:#ff5a6a55">Throwable</span>`);
+  if(g.sil)      chips.push(`<span class="trait" style="color:#8ea0c8;border-color:#8ea0c855" title="Suppressed: quieter, tighter, slightly weaker">Silenced</span>`);
+  if(g.launcher) chips.push(`<span class="trait" style="color:#ff8a4a;border-color:#ff8a4a55" title="Underbarrel boom launcher (throw with G / BOMB)">+Boom</span>`);
+  for(const t of (g.traits||[])){ const d=TRAITS[t]; if(d) chips.push(`<span class="trait" style="color:${d.col};border-color:${d.col}55" title="${d.desc}">${d.label}</span>`); }
+  if(!chips.length) chips.push(`<span class="trait" style="border-color:#33405f;color:#8ea0c8">Standard</span>`);
+  return '<div class="traits">'+chips.join('')+'</div>';
+}
+function summaryLine(g){
+  if(g.kind==='melee') return `DMG ${g.dmg} · reach ${g.reach} · ${(1000/g.swing).toFixed(1)} swings/s`;
+  if(g.kind==='bomb')  return `DMG ${g.dmg} · blast ${g.blast} · fuse ${(g.fuse/1000).toFixed(1)}s`;
+  return `DMG ${g.dmg} · ${(1000/g.rof).toFixed(1)}/s · mag ${g.mag}${g.pellets>1?' · x'+g.pellets:''}`;
 }
 
 // ---------- Workshop UI ----------
@@ -397,11 +503,13 @@ function renderGrid(){
       <div class="badge" style="color:${col};border:1px solid ${col}55">${TIER_NAME[Math.min(g.tier,TIER_NAME.length-1)]}</div>
       <canvas width="200" height="64"></canvas>
       <div class="gname">${g.name}</div>
-      <div class="tier">DMG ${g.dmg} · ${(1000/g.rof).toFixed(1)}/s · mag ${g.mag}${g.pellets>1?' · x'+g.pellets:''}</div>
+      <div class="tier">${summaryLine(g)}</div>
       ${traitChips(g)}
       ${statBars(g)}
-      <div style="display:flex;gap:6px;margin-top:10px;">
-        <button class="btn blue sm test" style="flex:1;">🎯 Test</button>
+      <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;">
+        <button class="btn blue sm test" style="flex:1;min-width:70px;">🎯 Test</button>
+        ${g.kind==='gun'&&!g.sil?'<button class="btn ghost sm sil" title="Attach silencer">🔇</button>':''}
+        ${g.kind==='gun'&&!g.launcher?'<button class="btn ghost sm boom" title="Attach boom launcher">💥</button>':''}
         <button class="btn ghost sm del" title="Delete">🗑</button>
       </div>`;
     drawGun(el.querySelector('canvas'), g);
@@ -409,6 +517,8 @@ function renderGrid(){
     el.addEventListener('click',(e)=>{ if(e.target.closest('button')) return; toggleSelect(g); });
     el.querySelector('.test').addEventListener('click',(e)=>{ e.stopPropagation(); equipAndRange(g); });
     el.querySelector('.del').addEventListener('click',(e)=>{ e.stopPropagation(); deleteGun(g); });
+    const silBtn=el.querySelector('.sil'); if(silBtn) silBtn.addEventListener('click',(e)=>{ e.stopPropagation(); const c=attachSilencer(g); arsenal.push(c); save(); renderGrid(); toast('Crafted '+c.name); });
+    const boomBtn=el.querySelector('.boom'); if(boomBtn) boomBtn.addEventListener('click',(e)=>{ e.stopPropagation(); const c=attachLauncher(g); arsenal.push(c); save(); renderGrid(); toast('Crafted '+c.name); });
     gunGrid.appendChild(el);
   }
   renderFuseBar();
@@ -423,13 +533,15 @@ function toggleSelect(g){
 }
 function renderFuseBar(){
   fillSlot('slotA', selA, 'A'); fillSlot('slotB', selB, 'B');
-  const ready = selA && selB && selA!==selB;
-  document.getElementById('fuseBtn').disabled = !ready;
+  const sameKind = selA && selB && selA.kind===selB.kind;
+  const ready = selA && selB && selA!==selB && sameKind;
+  const btn=document.getElementById('fuseBtn'); btn.disabled=!ready;
+  btn.textContent = (selA&&selB&&!sameKind)?'⚗️ same type only':'⚗️ Fuse';
   document.getElementById('clearSel').disabled = !(selA||selB);
 }
 function fillSlot(id, g, letter){
   const el=document.getElementById(id);
-  if(!g){ el.className='slot'; el.innerHTML=`<span class="empty">Pick gun ${letter}</span>`; return; }
+  if(!g){ el.className='slot'; el.innerHTML=`<span class="empty">Pick ${letter}</span>`; return; }
   el.className='slot filled';
   el.innerHTML=`<canvas width="120" height="80"></canvas><div><div class="n">${g.name}</div>
     <div style="font-size:11px;color:var(--muted)">${TIER_NAME[Math.min(g.tier,TIER_NAME.length-1)]}</div></div>`;
@@ -437,12 +549,12 @@ function fillSlot(id, g, letter){
 }
 document.getElementById('clearSel').onclick=()=>{ selA=selB=null; renderGrid(); };
 document.getElementById('fuseBtn').onclick=()=>{
-  if(!(selA&&selB&&selA!==selB)) return;
+  if(!(selA&&selB&&selA!==selB&&selA.kind===selB.kind)) return;
   const child=fuse(selA,selB);
   showFuseResult(child);
 };
 document.getElementById('resetBtn').onclick=()=>{
-  if(confirm('Reset arsenal back to the 8 base guns? Your fused guns will be lost.')){
+  if(confirm('Reset arsenal back to the base weapons? Your crafted weapons will be lost.')){
     arsenal=freshArsenal(); selA=selB=null; save(); renderGrid(); toast('Arsenal reset');
   }
 };
@@ -464,7 +576,7 @@ function showFuseResult(child){
   drawGun(document.getElementById('frCanvas'), child, 1.7);
   document.getElementById('frTraits').innerHTML=traitChips(child).replace('<div class="traits">','').replace('</div>','');
   document.getElementById('frStats').innerHTML=
-    `<div style="color:var(--muted);font-size:13px">DMG ${child.dmg} · ${(1000/child.rof).toFixed(1)} shots/s · mag ${child.mag}${child.pellets>1?' · x'+child.pellets+' pellets':''} · reload ${(child.reload/1000).toFixed(1)}s</div>`+statBars(child);
+    `<div style="color:var(--muted);font-size:13px">${summaryLine(child)}</div>`+statBars(child);
   document.getElementById('fuseResult').classList.remove('hide');
 }
 function keepChild(){
@@ -530,6 +642,10 @@ const m4={
     return [xx,yx,zx,0, xy,yy,zy,0, xz,yz,zz,0,
       -(xx*eye[0]+xy*eye[1]+xz*eye[2]), -(yx*eye[0]+yy*eye[1]+yz*eye[2]), -(zx*eye[0]+zy*eye[1]+zz*eye[2]), 1]; },
   model(px,py,pz,sx,sy,sz){ return [sx,0,0,0, 0,sy,0,0, 0,0,sz,0, px,py,pz,1]; },
+  rotY(a){ const c=Math.cos(a),s=Math.sin(a); return [c,0,-s,0, 0,1,0,0, s,0,c,0, 0,0,0,1]; },
+  // translate * rotateY * scale  (for yaw-rotated boxes like fighters)
+  modelYaw(px,py,pz,sx,sy,sz,yaw){ const c=Math.cos(yaw),s=Math.sin(yaw);
+    return [c*sx,0,-s*sx,0, 0,sy,0,0, s*sz,0,c*sz,0, px,py,pz,1]; },
 };
 const F32=m=>new Float32Array(m);
 
@@ -608,72 +724,151 @@ function resizeRange(){
 }
 window.addEventListener('resize',()=>{ if(rangeActive) resizeRange(); });
 
-// ---------- camera + state ----------
-const cam={x:0,y:1.7,z:16,yaw:0,pitch:0};
-let rbullets=[], targets=[], rparts=[];
-let equipped=null, rmag=0, rReloadUntil=0, rNextShot=0, rShoot=false;
-let burstQueue=0, burstTimer=0, muzzle=0;
-let peakDps=0, dpsWindow=[];
+// ---------- camera + battle state ----------
+const cam={x:0,y:1.6,z:16,yaw:0,pitch:0};
+let rbullets=[], rbombs=[], rparts=[], slashes=[];
+let equipped=null, rShoot=false, muzzle=0;
 function fwd(){ const cp=Math.cos(cam.pitch); return [cp*Math.sin(cam.yaw), Math.sin(cam.pitch), -cp*Math.cos(cam.yaw)]; }
 function hexRGB(h){ h=h.replace('#',''); return [parseInt(h.slice(0,2),16)/255,parseInt(h.slice(2,4),16)/255,parseInt(h.slice(4,6),16)/255]; }
 
+const TEAMS={ blue:{col:[0.36,0.62,1.0]}, red:{col:[1.0,0.36,0.40]}, green:{col:[0.45,0.9,0.5]}, yellow:{col:[1.0,0.83,0.32]} };
+const TEAM_ORDER=['blue','red','green','yellow'];
+const TEAM_BASE={ blue:[0,17], red:[0,-17], green:[-17,0], yellow:[17,0] };
+const BUILTIN_KNIFE={kind:'melee',name:'Knife',dmg:38,reach:2.3,arc:0.7,swing:400,traits:[]};
+const BUILTIN_BOOM ={kind:'bomb', name:'Boom',dmg:70,blast:5,fuse:1200,throw:18,traits:[]};
+
+// fighters[0] is always the player
+const player={ isPlayer:true, team:'blue', x:0, z:16, yaw:0, hp:100, maxhp:100,
+  weapon:null, mag:0, reloadUntil:0, nextShot:0, burstQ:0, burstT:0, nextMelee:0, nextBomb:0, dead:0 };
+let fighters=[player];
+let battleActive=false, winner=null;
+let spawnTeamSel='red', spawnCountSel=3, spawnWeaponIdx=0;
+
 function equip(g){
   if(!glReady && !glFailed) initGL();
-  equipped=g; rmag=g.mag; rReloadUntil=0; peakDps=0; dpsWindow=[];
-  document.getElementById('curgunName').textContent=g.name;
-  document.getElementById('magMax').textContent=g.mag;
-  document.getElementById('magVal').textContent=rmag;
-  document.getElementById('dpsVal').textContent='0';
+  equipped=g; player.weapon=g; player.mag=g.kind==='gun'?g.mag:0; player.reloadUntil=0; player.burstQ=0;
+  updateWeaponHUD();
   if(!glFailed) document.getElementById('noGun').classList.add('hide');
-  if(!targets.length) spawnTargets();
 }
-function makeTarget(){ const hp=Math.round(rand(90,170));
-  return {x:rand(-14,14), y:rand(1.6,4.6), z:rand(-15,7), r:rand(0.75,1.15), hp,maxhp:hp,
-    vx:rand(-2,2), vy:rand(-0.6,0.6), vz:rand(-1.6,1.6), hit:0, dead:0, burn:0, burnSrc:0, burnT:0}; }
-function spawnTargets(){ targets=[]; for(let i=0;i<7;i++) targets.push(makeTarget()); }
-function resetTargetObj(t){ Object.assign(t,makeTarget()); }
+function updateWeaponHUD(){
+  const g=equipped; if(!g) return;
+  document.getElementById('curgunName').textContent=g.name;
+  document.getElementById('wpnKind').textContent = g.kind==='gun'?'Weapon':(g.kind==='melee'?'Blade':'Bomb');
+  const al=document.getElementById('ammoLine');
+  if(g.kind==='gun'){ al.style.display=''; document.getElementById('magVal').textContent=player.mag; document.getElementById('magMax').textContent=g.mag; }
+  else al.style.display='none';
+}
 
-function rangeReload(){ if(!equipped) return; if(rmag>=equipped.mag||rReloadUntil>performance.now()) return; rReloadUntil=performance.now()+equipped.reload; }
-function registerDamage(dmg){ const now=performance.now(); dpsWindow.push({t:now,d:dmg}); const cut=now-500;
-  while(dpsWindow.length&&dpsWindow[0].t<cut) dpsWindow.shift();
-  const dps=dpsWindow.reduce((s,x)=>s+x.d,0)*2; if(dps>peakDps){ peakDps=dps; document.getElementById('dpsVal').textContent=Math.round(peakDps).toLocaleString(); } }
+// ---------- fighters ----------
+function makeFighter(team, weapon, x, z){
+  return { team, weapon, x, z, yaw:Math.random()*6.28, hp:100, maxhp:100,
+    mag:weapon.kind==='gun'?weapon.mag:0, reloadUntil:0, nextShot:0, burstQ:0, burstT:0,
+    nextMelee:0, nextBomb:0, strafe:(Math.random()<0.5?1:-1), aiT:0, hit:0, dead:0 };
+}
+function spawnBots(team, weapon, n){
+  const base=TEAM_BASE[team]||[0,0];
+  for(let i=0;i<n;i++){ const x=clamp(base[0]+rand(-6,6),-ARENA+2,ARENA-2), z=clamp(base[1]+rand(-6,6),-ARENA+2,ARENA-2);
+    fighters.push(makeFighter(team, weapon, x, z)); }
+  battleActive=true; winner=null; document.getElementById('winBanner').classList.add('hide');
+}
+function clearBots(){ fighters=[player]; battleActive=false; winner=null; rbullets=[]; rbombs=[]; slashes=[];
+  document.getElementById('winBanner').classList.add('hide'); }
+function aliveBots(){ return fighters.filter(f=>!f.isPlayer && !f.dead); }
 
-function aimDir(){ let d=fwd();
-  if(isTouch){ // gentle aim assist toward nearest target in front
-    let best=null,ba=0.4; for(const t of targets){ if(t.dead)continue; let dx=t.x-cam.x,dy=t.y-cam.y,dz=t.z-cam.z; const l=Math.hypot(dx,dy,dz)||1; dx/=l;dy/=l;dz/=l;
-      const dot=dx*d[0]+dy*d[1]+dz*d[2]; const ang=Math.acos(Math.min(1,Math.max(-1,dot))); if(ang<ba){ ba=ang; best=[dx,dy,dz]; } }
-    if(best){ d=[d[0]*0.3+best[0]*0.7, d[1]*0.3+best[1]*0.7, d[2]*0.3+best[2]*0.7]; const l=Math.hypot(d[0],d[1],d[2])||1; d=[d[0]/l,d[1]/l,d[2]/l]; } }
-  return d; }
-function basis(d){ let ux=d[2],uy=0,uz=-d[0]; let ul=Math.hypot(ux,uy,uz); if(ul<1e-4){ux=1;uy=0;uz=0;ul=1;} ux/=ul;uz/=ul;
+// ---------- combat ----------
+function basis(d){ let ux=d[2],uy=0,uz=-d[0]; let ul=Math.hypot(ux,uy,uz); if(ul<1e-4){ux=1;uz=0;ul=1;} ux/=ul;uz/=ul;
   const vx=d[1]*uz-d[2]*uy, vy=d[2]*ux-d[0]*uz, vz=d[0]*uy-d[1]*ux; return [[ux,uy,uz],[vx,vy,vz]]; }
-
-function fireShot(now){ const g=equipped; if(!g) return; if(now<rNextShot||rReloadUntil>now) return;
-  if(rmag<=0){ rangeReload(); return; }
-  if(g.traits.includes('burst')&&burstQueue<=0){ burstQueue=3; burstTimer=0; }
-  rNextShot=now+g.rof; emitBullets(now); }
-function emitBullets(now){ const g=equipped; if(rmag<=0){ rangeReload(); return; }
-  rmag--; document.getElementById('magVal').textContent=rmag;
-  const d=aimDir(); const [u,v]=basis(d);
+function shootFrom(f, ox,oy,oz, dir, now){
+  const g=f.weapon; const [u,v]=basis(dir);
   const pellets=(g.pellets||1)+(g.traits.includes('scatter')?2:0);
-  const cone=g.spread+(pellets>1?0.05:0);
+  const extra=f.isPlayer?0:0.02; // bots a touch less accurate
+  const cone=g.spread+extra+(pellets>1?0.05:0);
   const col=hexRGB(gunColor(g));
-  const mx=cam.x+d[0]*0.9, my=cam.y+d[1]*0.9-0.12, mz=cam.z+d[2]*0.9;
   for(let i=0;i<pellets;i++){
     const rx=(Math.random()*2-1)*cone, ry=(Math.random()*2-1)*cone;
-    let dx=d[0]+u[0]*rx+v[0]*ry, dy=d[1]+u[1]*rx+v[1]*ry, dz=d[2]+u[2]*rx+v[2]*ry;
+    let dx=dir[0]+u[0]*rx+v[0]*ry, dy=dir[1]+u[1]*rx+v[1]*ry, dz=dir[2]+u[2]*rx+v[2]*ry;
     const l=Math.hypot(dx,dy,dz)||1; dx/=l;dy/=l;dz/=l;
-    const sp=g.speed*0.028*rand(.95,1.05); // world-units/sec scaled
-    rbullets.push({x:mx,y:my,z:mz, vx:dx*sp, vy:dy*sp, vz:dz*sp, dmg:g.dmg, r:0.14, life:2.2, col,
+    const sp=g.speed*0.028*rand(.96,1.04);
+    rbullets.push({x:ox,y:oy,z:oz, vx:dx*sp,vy:dy*sp,vz:dz*sp, dmg:g.dmg, r:0.14, life:2.2, col, team:f.team,
       pierce:g.traits.includes('pierce'), explosive:g.traits.includes('explosive'), homing:g.traits.includes('homing'),
-      incendiary:g.traits.includes('incendiary'), ricochet:g.traits.includes('ricochet'), bounces:3, hitset:null }); }
-  muzzle=0.05; rparts.push({x:mx,y:my,z:mz,vx:0,vy:0,vz:0,life:0.06,max:0.06,col:[1,0.95,0.7],size:0.35});
+      incendiary:g.traits.includes('incendiary'), ricochet:g.traits.includes('ricochet'), bounces:3, hitset:null, sil:g.sil}); }
+  if(!g.sil){ muzzle=Math.max(muzzle, f.isPlayer?0.05:0); rparts.push({x:ox,y:oy,z:oz,vx:0,vy:0,vz:0,life:0.05,max:0.05,col:[1,0.95,0.7],size:0.3}); }
+  if(f.isPlayer && rShakeAdd) rShakeAdd(pellets>2?4:2);
 }
-function explode(x,y,z){ for(let i=0;i<16;i++){ const a=rand(0,6.28),b=rand(-1,1),s=rand(2,7);
-    rparts.push({x,y,z,vx:Math.cos(a)*s,vy:b*s,vz:Math.sin(a)*s,life:rand(.2,.5),max:.5,col:[1,0.5,0.3],size:0.12}); }
-  for(const t of targets){ if(t.dead)continue; const d2=(t.x-x)**2+(t.y-y)**2+(t.z-z)**2, R=3.2;
-    if(d2<R*R){ const dmg=Math.round(30*(1-Math.sqrt(d2)/R)+8); t.hp-=dmg; t.hit=0.1; registerDamage(dmg); if(t.hp<=0) killTarget(t); } } }
-function killTarget(t){ if(t.dead)return; t.dead=0.6; for(let i=0;i<14;i++){ const a=rand(0,6.28),b=rand(-1,1),s=rand(2,6);
-    rparts.push({x:t.x,y:t.y,z:t.z,vx:Math.cos(a)*s,vy:b*s,vz:Math.sin(a)*s,life:rand(.25,.55),max:.55,col:[0.4,0.9,0.6],size:0.13}); } }
+function throwBombFrom(f, ox,oy,oz, dir, spec){
+  const s=spec||f.weapon; const sp=(s.throw||16);
+  rbombs.push({x:ox,y:oy,z:oz, vx:dir[0]*sp, vy:dir[1]*sp+3.5, vz:dir[2]*sp, fuse:s.fuse/1000, dmg:s.dmg, blast:s.blast, team:f.team, t:0});
+}
+function meleeFrom(f, spec){
+  const s=spec||f.weapon; const d=fighterFwd(f.yaw); let hitAny=false;
+  for(const t of fighters){ if(t===f||t.dead||t.team===f.team) continue;
+    const dx=t.x-f.x, dz=t.z-f.z, dist=Math.hypot(dx,dz); if(dist>s.reach+0.6) continue;
+    const dot=(dx*d[0]+dz*d[2])/(dist||1); if(Math.acos(clamp(dot,-1,1))>s.arc+0.2) continue;
+    damageFighter(t, s.dmg, f.team); hitAny=true; }
+  slashes.push({x:f.x+d[0]*s.reach*0.5, y:1.1, z:f.z+d[2]*s.reach*0.5, yaw:f.yaw, reach:s.reach, life:0.16, max:0.16,
+    col:f.weapon&&f.weapon.kind==='melee'?hexRGB(gunColor(f.weapon)):[0.85,0.9,1]});
+  return hitAny;
+}
+function fighterFwd(yaw){ return [Math.sin(yaw), 0, -Math.cos(yaw)]; }
+function explode(x,y,z,dmg,blast,team){
+  for(let i=0;i<18;i++){ const a=rand(0,6.28),b=rand(0,1),s=rand(3,9);
+    rparts.push({x,y,z,vx:Math.cos(a)*s,vy:b*s,vz:Math.sin(a)*s,life:rand(.25,.55),max:.55,col:i%2?[1,0.6,0.3]:[1,0.85,0.4],size:0.16}); }
+  if(rShakeAdd) rShakeAdd(7);
+  for(const t of fighters){ if(t.dead||t.team===team) continue; // no friendly fire
+    const dx=t.x-x, dy=1.0-y, dz=t.z-z, d=Math.hypot(dx,dy,dz);
+    if(d<blast){ damageFighter(t, Math.round(dmg*(1-d/blast)+6), team); } }
+}
+function damageFighter(f, dmg, byTeam){
+  if(f.dead) return; f.hp-=dmg; f.hit=0.09;
+  if(f.isPlayer){ flashHurt(); updateHpHUD(); if(f.hp<=0){ f.hp=0; killFighter(f); } return; }
+  rparts.push({x:f.x,y:1.1,z:f.z,vx:rand(-2,2),vy:rand(1,3),vz:rand(-2,2),life:.25,max:.25,col:[1,0.4,0.45],size:0.09});
+  if(f.hp<=0) killFighter(f);
+}
+function killFighter(f){
+  if(f.dead) return; f.dead=0.001;
+  const col=TEAMS[f.team].col;
+  for(let i=0;i<16;i++){ const a=rand(0,6.28),b=rand(0,1),s=rand(2,6);
+    rparts.push({x:f.x,y:1.0,z:f.z,vx:Math.cos(a)*s,vy:b*s,vz:Math.sin(a)*s,life:rand(.3,.6),max:.6,col,size:0.13}); }
+  if(f.isPlayer){ player.dead=1; player.deadT=1.8; }
+}
+
+// ---------- HUD ----------
+function updateHpHUD(){ document.getElementById('hpFill').style.width=clamp(player.hp/player.maxhp*100,0,100)+'%'; }
+let hurtFlash=0; function flashHurt(){ hurtFlash=0.35; }
+function updateTeamHUD(){
+  const counts={}; for(const f of fighters){ if(f.dead) continue; counts[f.team]=(counts[f.team]||0)+1; }
+  const parts=TEAM_ORDER.filter(t=>counts[t]).map(t=>{ const c=TEAMS[t].col.map(v=>Math.round(v*255));
+    return `<span style="color:rgb(${c[0]},${c[1]},${c[2]})">${t[0].toUpperCase()+t.slice(1)} ${counts[t]}</span>`; });
+  document.getElementById('teamCounts').innerHTML = parts.length?parts.join(' · '):'—';
+}
+
+// ---------- spawn panel UI ----------
+function buildSpawnUI(){
+  const mk=(host, sel, onPick)=>{ host.innerHTML=''; TEAM_ORDER.forEach(t=>{ const c=TEAMS[t].col.map(v=>Math.round(v*255));
+    const el=document.createElement('div'); el.className='teamChip'+(sel===t?' on':''); el.style.background=`rgb(${c[0]},${c[1]},${c[2]})`;
+    el.title=t; el.onclick=()=>onPick(t); host.appendChild(el); }); };
+  mk(document.getElementById('myTeam'), player.team, t=>{ player.team=t; buildSpawnUI(); });
+  mk(document.getElementById('spawnTeam'), spawnTeamSel, t=>{ spawnTeamSel=t; buildSpawnUI(); });
+  const cnt=document.getElementById('spawnCount'); cnt.innerHTML='';
+  [1,2,3,5].forEach(n=>{ const el=document.createElement('div'); el.className='countChip'+(spawnCountSel===n?' on':''); el.textContent=n;
+    el.onclick=()=>{ spawnCountSel=n; buildSpawnUI(); }; cnt.appendChild(el); });
+  const wsel=document.getElementById('spawnWeapon'); wsel.innerHTML='';
+  arsenal.forEach((g,i)=>{ const o=document.createElement('option'); o.value=i;
+    o.textContent=g.name+' ('+(g.kind==='gun'?'gun':g.kind)+')'; wsel.appendChild(o); });
+  wsel.value=Math.min(spawnWeaponIdx,arsenal.length-1);
+  wsel.onchange=()=>{ spawnWeaponIdx=+wsel.value; };
+}
+document.getElementById('spawnBtn').onclick=()=>{ buildSpawnUI(); document.getElementById('spawnPanel').classList.remove('hide'); };
+document.getElementById('spawnClose').onclick=()=>document.getElementById('spawnPanel').classList.add('hide');
+document.getElementById('doSpawn').onclick=()=>{ spawnBots(spawnTeamSel, JSON.parse(JSON.stringify(arsenal[spawnWeaponIdx])), spawnCountSel);
+  document.getElementById('spawnPanel').classList.add('hide'); toast('Spawned '+spawnCountSel+' '+spawnTeamSel+' fighters'); };
+document.getElementById('brawlBtn').onclick=()=>{ clearBots();
+  const guns=arsenal.filter(g=>g.kind!=='bomb'); const pick=()=>JSON.parse(JSON.stringify(guns[Math.floor(Math.random()*guns.length)]));
+  for(let i=0;i<4;i++) fighters.push(makeFighter('red', pick(), TEAM_BASE.red[0]+rand(-6,6), TEAM_BASE.red[1]+rand(-6,6)));
+  for(let i=0;i<4;i++) fighters.push(makeFighter('green', pick(), TEAM_BASE.green[0]+rand(-6,6), TEAM_BASE.green[1]+rand(-6,6)));
+  battleActive=true; winner=null; document.getElementById('winBanner').classList.add('hide');
+  document.getElementById('spawnPanel').classList.add('hide'); toast('Red vs Green — fight!'); };
+document.getElementById('clearBots').onclick=()=>{ clearBots(); toast('Arena cleared'); };
 
 // ---------- input: desktop pointer lock ----------
 let locked=false;
@@ -685,10 +880,13 @@ document.addEventListener('mousedown',e=>{ if(locked&&e.button===0) rShoot=true;
 document.addEventListener('mouseup',e=>{ if(e.button===0) rShoot=false; });
 range.addEventListener('contextmenu',e=>e.preventDefault());
 const rkeys={};
-window.addEventListener('keydown',e=>{ if(!rangeActive)return; const k=e.key.toLowerCase(); rkeys[k]=true; if(k==='r')rangeReload(); if(k===' '){rShoot=true;e.preventDefault();} });
-window.addEventListener('keyup',e=>{ const k=e.key.toLowerCase(); rkeys[k]=false; if(k===' ')rShoot=false; });
+window.addEventListener('keydown',e=>{ if(!rangeActive)return; const k=e.key.toLowerCase(); rkeys[k]=true;
+  if(k==='r'){ if(equipped&&equipped.kind==='gun'&&player.mag<equipped.mag&&player.reloadUntil<=performance.now()) player.reloadUntil=performance.now()+equipped.reload; }
+  if(k==='g'){ playerBomb(); } if(k==='v'){ playerMelee(); }
+  if(k===' '){ rShoot=true; e.preventDefault(); } });
+window.addEventListener('keyup',e=>{ const k=e.key.toLowerCase(); rkeys[k]=false; if(k===' ') rShoot=false; });
 
-// ---------- input: touch (left stick move, drag look, fire button) ----------
+// ---------- input: touch ----------
 const stick=document.getElementById('stick'), nub=document.getElementById('nub'), fireBtn=document.getElementById('fireBtn');
 const lookpad=document.getElementById('lookpad');
 let rMove={x:0,y:0}, stickId=null, lookId=null, lookLast={x:0,y:0};
@@ -707,127 +905,235 @@ window.addEventListener('touchend',e=>{ for(const t of e.changedTouches){
     if(t.identifier===lookId){ lookId=null; } } },{passive:false});
 fireBtn.addEventListener('touchstart',e=>{e.preventDefault();e.stopPropagation(); rShoot=true;},{passive:false});
 fireBtn.addEventListener('touchend',e=>{e.preventDefault();e.stopPropagation(); rShoot=false;},{passive:false});
-document.getElementById('resetTargets').onclick=()=>{ spawnTargets(); };
+document.getElementById('meleeBtn').addEventListener('touchstart',e=>{e.preventDefault();e.stopPropagation(); playerMelee();},{passive:false});
+document.getElementById('bombBtn').addEventListener('touchstart',e=>{e.preventDefault();e.stopPropagation(); playerBomb();},{passive:false});
+
+function playerMelee(){ const now=performance.now(); if(player.dead||now<player.nextMelee) return; player.nextMelee=now+BUILTIN_KNIFE.swing;
+  const spec = (equipped&&equipped.kind==='melee')?equipped:BUILTIN_KNIFE; player.yaw=cam.yaw; meleeFrom(player, spec); }
+function playerBomb(){ const now=performance.now(); if(player.dead||now<player.nextBomb) return;
+  let spec=null; if(equipped&&equipped.kind==='bomb') spec=equipped; else if(equipped&&equipped.launcher) spec=BUILTIN_BOOM;
+  if(!spec){ toast('No bomb — equip a Bomb or a gun with +Boom'); return; }
+  player.nextBomb=now+900; const d=fwd(); throwBombFrom(player, cam.x+d[0]*0.6,1.4,cam.z+d[2]*0.6, d, spec); }
 
 // ---------- helpers ----------
 function rand(a,b){ return a+Math.random()*(b-a); }
 function clamp(v,a,b){ return v<a?a:v>b?b:v; }
+let rShake=0; function rShakeAdd(v){ rShake=Math.min(14, rShake+v); }
 
 // ---------- loop ----------
 let rlast=performance.now();
 function rangeFrame(now){ requestAnimationFrame(rangeFrame); let dt=(now-rlast)/1000; rlast=now; if(dt>0.05)dt=0.05;
-  if(rangeActive && glReady){ rangeUpdate(dt,now); rangeRender(now); } }
+  if(rangeActive && glReady){ battleUpdate(dt,now); battleRender(now); } }
 requestAnimationFrame(rangeFrame);
 
-function rangeUpdate(dt,now){
-  if(rReloadUntil&&now>=rReloadUntil){ rmag=equipped?equipped.mag:0; rReloadUntil=0; document.getElementById('magVal').textContent=rmag; }
-  // movement
+function nearestEnemy(f){ let best=null,bd=1e9; for(const t of fighters){ if(t===f||t.dead||t.team===f.team) continue;
+    const d=(t.x-f.x)**2+(t.z-f.z)**2; if(d<bd){bd=d;best=t;} } return best?{t:best,d:Math.sqrt(bd)}:null; }
+
+function battleUpdate(dt,now){
+  // ---- player movement/look ----
   let f=0,s=0; if(rkeys['w']||rkeys['arrowup'])f+=1; if(rkeys['s']||rkeys['arrowdown'])f-=1;
   if(rkeys['d']||rkeys['arrowright'])s+=1; if(rkeys['a']||rkeys['arrowleft'])s-=1;
   f-=rMove.y; s+=rMove.x;
   const fdx=Math.sin(cam.yaw), fdz=-Math.cos(cam.yaw), rdx=Math.cos(cam.yaw), rdz=Math.sin(cam.yaw);
   let mvx=fdx*f+rdx*s, mvz=fdz*f+rdz*s; const ml=Math.hypot(mvx,mvz); if(ml>1){mvx/=ml;mvz/=ml;}
-  const spd=6.5; cam.x=clamp(cam.x+mvx*spd*dt,-ARENA+1,ARENA-1); cam.z=clamp(cam.z+mvz*spd*dt,-ARENA+1,ARENA-1);
-  EYE=[cam.x,cam.y,cam.z];
-  // fire
-  if(equipped){ if(burstQueue>0){ burstTimer-=dt; if(burstTimer<=0&&rReloadUntil<=now){ emitBullets(now); burstQueue--; burstTimer=0.05; } }
-    else if(rShoot) fireShot(now); }
+  if(!player.dead){ const spd=6.2; cam.x=clamp(cam.x+mvx*spd*dt,-ARENA+1,ARENA-1); cam.z=clamp(cam.z+mvz*spd*dt,-ARENA+1,ARENA-1); }
+  cam.y=1.6; EYE=[cam.x,cam.y,cam.z]; player.x=cam.x; player.z=cam.z; player.yaw=cam.yaw;
+
+  // player respawn
+  if(player.dead){ player.deadT-=dt; if(player.deadT<=0){ player.dead=0; player.hp=player.maxhp; updateHpHUD();
+    const b=TEAM_BASE[player.team]||[0,16]; cam.x=b[0]; cam.z=b[1]; toast('Respawned'); } }
+
+  // player firing
+  if(equipped && !player.dead && rShoot){
+    if(equipped.kind==='gun') playerGunFire(now);
+    else if(equipped.kind==='melee') playerMelee();
+    else if(equipped.kind==='bomb') playerBomb();
+  }
+  // player gun burst / reload
+  if(equipped && equipped.kind==='gun'){
+    if(player.reloadUntil && now>=player.reloadUntil){ player.mag=equipped.mag; player.reloadUntil=0; updateWeaponHUD(); }
+    if(player.burstQ>0){ player.burstT-=dt; if(player.burstT<=0 && player.reloadUntil<=now && player.mag>0){ emitPlayerBullet(now); player.burstQ--; player.burstT=0.05; } }
+  }
   if(muzzle>0) muzzle-=dt;
 
-  // targets
-  if(!targets.length) spawnTargets();
-  for(const t of targets){ if(t.dead){ t.dead-=dt; if(t.dead<=0) resetTargetObj(t); continue; }
-    t.x+=t.vx*dt; t.y+=t.vy*dt; t.z+=t.vz*dt;
-    if(t.x<-15||t.x>15)t.vx*=-1; if(t.z<-16||t.z>8)t.vz*=-1; if(t.y<1.4||t.y>5)t.vy*=-1;
-    t.x=clamp(t.x,-15,15); t.z=clamp(t.z,-16,8); t.y=clamp(t.y,1.4,5);
-    if(t.hit>0)t.hit-=dt;
-    if(t.burn>0){ t.burn-=dt; t.burnT-=dt; if(t.burnT<=0){ t.burnT=0.25; t.hp-=t.burnSrc; registerDamage(t.burnSrc); if(t.hp<=0) killTarget(t); } } }
+  // ---- bots AI ----
+  for(const b of fighters){ if(b.isPlayer||b.dead) continue;
+    if(!battleActive || winner){ continue; } // freeze on win
+    const en=nearestEnemy(b); if(!en){ continue; }
+    const tgt=en.t, dist=en.d; const dx=tgt.x-b.x, dz=tgt.z-b.z; b.yaw=Math.atan2(dx, -dz);
+    const w=b.weapon; let range = w.kind==='melee'? w.reach : (w.kind==='bomb'? 14 : 22);
+    // move
+    let mvx2=0,mvz2=0; const nrm=dist||1;
+    if(dist>range*0.9){ mvx2=dx/nrm; mvz2=dz/nrm; }
+    else if(dist<range*0.5 && w.kind!=='melee'){ mvx2=-dx/nrm; mvz2=-dz/nrm; }
+    else { mvx2=-dz/nrm*b.strafe; mvz2=dx/nrm*b.strafe; if(Math.random()<0.01) b.strafe*=-1; }
+    const bspd=w.kind==='melee'?4.2:3.3;
+    let nx=b.x+mvx2*bspd*dt, nz=b.z+mvz2*bspd*dt;
+    // separation
+    for(const o of fighters){ if(o===b||o.dead) continue; const ox=nx-o.x, oz=nz-o.z, od=Math.hypot(ox,oz);
+      if(od>0 && od<1.1){ nx+=ox/od*(1.1-od)*0.5; nz+=oz/od*(1.1-od)*0.5; } }
+    b.x=clamp(nx,-ARENA+1,ARENA-1); b.z=clamp(nz,-ARENA+1,ARENA-1);
+    if(b.hit>0) b.hit-=dt;
+    // attack — aim horizontally toward target
+    const aim=[dx/nrm, 0, dz/nrm]; const al=Math.hypot(aim[0],aim[2])||1; aim[0]/=al; aim[2]/=al;
+    if(w.kind==='melee'){ if(dist<=w.reach+0.5 && now>=b.nextMelee){ b.nextMelee=now+w.swing; meleeFrom(b); } }
+    else if(w.kind==='bomb'){ if(dist<=16 && now>=b.nextBomb){ b.nextBomb=now+2200; throwBombFrom(b, b.x,1.2,b.z, [aim[0],0.15,aim[2]]); } }
+    else { // gun
+      if(b.reloadUntil && now>=b.reloadUntil){ b.mag=w.mag; b.reloadUntil=0; }
+      if(dist<=range && now>=b.nextShot && b.reloadUntil<=now){
+        if(b.mag<=0){ b.reloadUntil=now+w.reload; }
+        else { b.nextShot=now+Math.max(90,w.rof*1.25); b.mag--;
+          shootFrom(b, b.x,1.15,b.z, [aim[0],0.05,aim[2]], now);
+          if(w.launcher && Math.random()<0.02) throwBombFrom(b, b.x,1.2,b.z, [aim[0],0.2,aim[2]], BUILTIN_BOOM); } }
+    }
+  }
 
-  // bullets
+  updateBullets(dt); updateBombs(dt,now); updateParts(dt); updateSlashes(dt);
+  // dead fighters fade + remove
+  for(let i=fighters.length-1;i>=0;i--){ const d=fighters[i]; if(d.isPlayer) continue;
+    if(d.dead){ d.dead+=dt; if(d.dead>0.7) fighters.splice(i,1); } }
+
+  updateTeamHUD(); checkWinner();
+  if(rShake>0) rShake=Math.max(0,rShake-dt*30);
+  if(hurtFlash>0) hurtFlash-=dt;
+  if(toastT>0){ toastT-=dt; if(toastT<=0) document.getElementById('toast').classList.remove('show'); }
+}
+
+function playerGunFire(now){ const g=equipped;
+  if(now<player.nextShot || player.reloadUntil>now) return;
+  if(player.mag<=0){ if(player.reloadUntil<=now) player.reloadUntil=now+g.reload; return; }
+  if(g.traits.includes('burst') && player.burstQ<=0){ player.burstQ=3; player.burstT=0; }
+  player.nextShot=now+g.rof; emitPlayerBullet(now);
+}
+function emitPlayerBullet(now){ const g=equipped; if(player.mag<=0){ if(player.reloadUntil<=now) player.reloadUntil=now+g.reload; return; }
+  player.mag--; updateWeaponHUD(); const d=fwd(); shootFrom(player, cam.x+d[0]*0.6,cam.y+d[1]*0.6-0.1,cam.z+d[2]*0.6, d, now); }
+
+function hitFighterByBullet(b){
+  for(const t of fighters){ if(t.dead||t.team===b.team) continue; if(b.hitset&&b.hitset.has(t)) continue;
+    const dx=b.x-t.x, dz=b.z-t.z; const yb=b.y; // fighter capsule ~ x/z radius 0.55, y 0.2..1.85
+    if(dx*dx+dz*dz < 0.62*0.62 && yb>0.2 && yb<1.9){
+      damageFighter(t, b.dmg, b.team);
+      for(let k=0;k<4;k++){ const a=rand(0,6.28); rparts.push({x:b.x,y:b.y,z:b.z,vx:Math.cos(a)*2,vy:rand(0,2),vz:Math.sin(a)*2,life:.2,max:.2,col:b.col,size:0.08}); }
+      if(b.incendiary){ t._burn=1.8; t._burnSrc=Math.max(2,Math.round(b.dmg*0.2)); t._burnT=0; }
+      if(b.explosive){ explode(b.x,b.y,b.z, Math.round(b.dmg*0.7), 3.2, b.team); }
+      if(b.pierce){ (b.hitset||(b.hitset=new Set())).add(t); return false; }
+      return true;
+    } }
+  return false;
+}
+function updateBullets(dt){
   for(let i=rbullets.length-1;i>=0;i--){ const b=rbullets[i];
-    if(b.homing){ let best=null,bd=1e9; for(const t of targets){ if(t.dead)continue; const d2=(t.x-b.x)**2+(t.y-b.y)**2+(t.z-b.z)**2; if(d2<bd){bd=d2;best=t;} }
-      if(best){ const sp=Math.hypot(b.vx,b.vy,b.vz)||1; let dx=best.x-b.x,dy=best.y-b.y,dz=best.z-b.z; const l=Math.hypot(dx,dy,dz)||1; dx/=l;dy/=l;dz/=l;
-        const k=Math.min(1,5*dt); b.vx+= (dx*sp-b.vx)*k; b.vy+=(dy*sp-b.vy)*k; b.vz+=(dz*sp-b.vz)*k;
+    if(b.homing){ let best=null,bd=1e9; for(const t of fighters){ if(t.dead||t.team===b.team) continue; const d2=(t.x-b.x)**2+(1.1-b.y)**2+(t.z-b.z)**2; if(d2<bd){bd=d2;best=t;} }
+      if(best){ const sp=Math.hypot(b.vx,b.vy,b.vz)||1; let dx=best.x-b.x,dy=1.1-b.y,dz=best.z-b.z; const l=Math.hypot(dx,dy,dz)||1; dx/=l;dy/=l;dz/=l;
+        const k=Math.min(1,4.5*dt); b.vx+=(dx*sp-b.vx)*k; b.vy+=(dy*sp-b.vy)*k; b.vz+=(dz*sp-b.vz)*k;
         const nl=Math.hypot(b.vx,b.vy,b.vz)||1; b.vx=b.vx/nl*sp; b.vy=b.vy/nl*sp; b.vz=b.vz/nl*sp; } }
     b.x+=b.vx*dt; b.y+=b.vy*dt; b.z+=b.vz*dt; b.life-=dt;
     if(b.ricochet&&b.bounces>0){ if(b.x<-ARENA||b.x>ARENA){b.vx*=-1;b.bounces--;b.x=clamp(b.x,-ARENA,ARENA);}
       if(b.z<-ARENA||b.z>ARENA){b.vz*=-1;b.bounces--;b.z=clamp(b.z,-ARENA,ARENA);}
-      if(b.y<0.1||b.y>WALLH){b.vy*=-1;b.bounces--;b.y=clamp(b.y,0.1,WALLH);} }
+      if(b.y<0.1){b.vy*=-1;b.bounces--;b.y=0.1;} }
     if(b.life<=0||Math.abs(b.x)>ARENA+2||Math.abs(b.z)>ARENA+2||b.y<-1||b.y>WALLH+2){ rbullets.splice(i,1); continue; }
-    let removed=false;
-    for(const t of targets){ if(t.dead)continue; if(b.hitset&&b.hitset.has(t))continue;
-      const rr=t.r+b.r; if((b.x-t.x)**2+(b.y-t.y)**2+(b.z-t.z)**2 < rr*rr){
-        t.hp-=b.dmg; t.hit=0.1; registerDamage(b.dmg);
-        for(let k=0;k<4;k++){ const a=rand(0,6.28); rparts.push({x:b.x,y:b.y,z:b.z,vx:Math.cos(a)*2,vy:rand(-1,1)*2,vz:Math.sin(a)*2,life:.25,max:.25,col:b.col,size:0.09}); }
-        if(b.incendiary){ t.burn=2.2; t.burnT=0; t.burnSrc=Math.max(2,Math.round(b.dmg*0.25)); }
-        if(b.explosive) explode(b.x,b.y,b.z);
-        if(t.hp<=0) killTarget(t);
-        if(b.pierce){ (b.hitset||(b.hitset=new Set())).add(t); } else { rbullets.splice(i,1); removed=true; }
-        break; } }
-    if(removed) continue; }
+    if(hitFighterByBullet(b)) rbullets.splice(i,1);
+  }
+  // burn DoT
+  for(const t of fighters){ if(t.dead||!t._burn) continue; t._burn-=dt; t._burnT-=dt;
+    if(t._burnT<=0){ t._burnT=0.25; damageFighter(t, t._burnSrc, 'fire'); } if(t._burn<=0) t._burn=0; }
+}
+function updateBombs(dt,now){
+  for(let i=rbombs.length-1;i>=0;i--){ const bo=rbombs[i]; bo.t+=dt; bo.fuse-=dt;
+    bo.vy-=14*dt; bo.x+=bo.vx*dt; bo.y+=bo.vy*dt; bo.z+=bo.vz*dt;
+    if(bo.y<=0.2){ bo.y=0.2; bo.vy*=-0.4; bo.vx*=0.6; bo.vz*=0.6; }
+    if(Math.abs(bo.x)>ARENA){ bo.vx*=-0.5; bo.x=clamp(bo.x,-ARENA,ARENA); }
+    if(Math.abs(bo.z)>ARENA){ bo.vz*=-0.5; bo.z=clamp(bo.z,-ARENA,ARENA); }
+    if(bo.fuse<=0){ explode(bo.x,bo.y,bo.z, bo.dmg, bo.blast, bo.team); rbombs.splice(i,1); }
+  }
+}
+function updateParts(dt){ for(let i=rparts.length-1;i>=0;i--){ const p=rparts[i]; p.x+=p.vx*dt;p.y+=p.vy*dt;p.z+=p.vz*dt; p.vy-=6*dt; p.vx*=0.94;p.vz*=0.94; p.life-=dt; if(p.life<=0) rparts.splice(i,1); } }
+function updateSlashes(dt){ for(let i=slashes.length-1;i>=0;i--){ const s=slashes[i]; s.life-=dt; if(s.life<=0) slashes.splice(i,1); } }
 
-  // particles
-  for(let i=rparts.length-1;i>=0;i--){ const p=rparts[i]; p.x+=p.vx*dt; p.y+=p.vy*dt; p.z+=p.vz*dt; p.vy-=6*dt; p.vx*=0.94;p.vz*=0.94; p.life-=dt; if(p.life<=0) rparts.splice(i,1); }
-  if(toastT>0){ toastT-=dt; if(toastT<=0) document.getElementById('toast').classList.remove('show'); }
+function checkWinner(){
+  if(!battleActive || winner) return;
+  // player's team is always "in play" (the player respawns), so it counts even mid-respawn
+  const teams=new Set([player.team]);
+  for(const f of fighters){ if(!f.isPlayer && !f.dead) teams.add(f.team); }
+  if(teams.size>1) return;
+  const w=[...teams][0]; winner=w; const el=document.getElementById('winBanner');
+  if(w===player.team){
+    const teammates=fighters.some(f=>!f.isPlayer && !f.dead && f.team===player.team);
+    el.innerHTML = (teammates?'YOUR TEAM WINS 🏆':'YOU WIN 🏆')
+      + '<small>you cleared the arena — press ＋ Spawn to fight again</small>';
+  } else { const c=TEAMS[w].col.map(v=>Math.round(v*255));
+    el.innerHTML = `<span style="color:rgb(${c[0]},${c[1]},${c[2]})">${w.toUpperCase()} TEAM WINS</span><small>press ＋ Spawn for a new battle</small>`;
+  }
+  el.classList.remove('hide');
 }
 
-function rangeRender(now){
+// ---------- render ----------
+function battleRender(now){
   gl.viewport(0,0,range.width,range.height);
   gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
-  const proj=m4.perspective(1.15, range.width/range.height, 0.1, 120);
+  const proj=m4.perspective(1.15, range.width/range.height, 0.1, 140);
   const d=fwd(); const view=m4.lookAt(EYE,[EYE[0]+d[0],EYE[1]+d[1],EYE[2]+d[2]],[0,1,0]);
-  VP=m4.mul(proj,view);
+  let sx=0,sz=0; if(rShake>0){ sx=rand(-rShake,rShake)*0.02; sz=rand(-rShake,rShake)*0.02; }
+  VP=m4.mul(proj,view); if(rShake>0){ /* shake via small eye offset already subtle */ }
   gl.uniform3fv(loc.uCam,F32(EYE)); gl.uniform3fv(loc.uFog,F32([0.035,0.055,0.11]));
 
-  // floor
   draw(PLANE, m4.model(0,0,0,ARENA*2,1,ARENA*2), [0.07,0.10,0.18], false, 1);
-  // grid lines (unlit)
-  draw(GRID, m4.model(0,0,0,1,1,1), [0.25,0.55,0.85], true, 0.5, gl.LINES);
-  // walls
+  draw(GRID, m4.model(0,0,0,1,1,1), [0.25,0.55,0.85], true, 0.4, gl.LINES);
   const wc=[0.10,0.13,0.22];
   draw(CUBE, m4.model(ARENA,WALLH/2,0,0.5,WALLH,ARENA*2), wc,false,1);
   draw(CUBE, m4.model(-ARENA,WALLH/2,0,0.5,WALLH,ARENA*2), wc,false,1);
   draw(CUBE, m4.model(0,WALLH/2,ARENA,ARENA*2,WALLH,0.5), wc,false,1);
   draw(CUBE, m4.model(0,WALLH/2,-ARENA,ARENA*2,WALLH,0.5), wc,false,1);
 
-  // targets: outer shell + depleting core
-  for(const t of targets){ const a=t.dead>0?clamp(t.dead/0.6,0,1):1; if(t.dead&&a<=0.02) continue;
-    const ratio=clamp(t.hp/t.maxhp,0,1);
-    const core = t.hit>0? [1,1,1] : [1.0-0.5*ratio, 0.5+0.45*ratio, 0.55+0.45*ratio];
-    const cr=t.r*(0.4+0.55*ratio); draw(SPHERE, m4.model(t.x,t.y,t.z, cr,cr,cr), core, true, a); // bright core first (unlit, opaque)
-    draw(SPHERE, m4.model(t.x,t.y,t.z, t.r,t.r,t.r), [0.62,0.8,1.0], false, 0.22*a); } // translucent shell over it
+  // fighters (skip player)
+  for(const f of fighters){ if(f.isPlayer) continue;
+    const a=f.dead?clamp(1-f.dead/0.7,0,1):1; if(a<=0.02) continue;
+    const tc=TEAMS[f.team].col; const body=f.hit>0?[1,1,1]:tc;
+    const yb=f.dead?Math.max(0.1,0.55-f.dead*0.5):0.55;
+    draw(CUBE, m4.modelYaw(f.x, yb, f.z, 0.55,1.1,0.4, f.yaw), body, false, a);          // torso
+    draw(SPHERE, m4.model(f.x, 1.32, f.z, 0.24,0.24,0.24), [tc[0]*1.1,tc[1]*1.1,tc[2]*1.1], false, a); // head
+    // weapon nub in front
+    const fw=fighterFwd(f.yaw); const wcol=f.weapon?hexRGB(gunColor(f.weapon)):[0.8,0.85,0.95];
+    if(f.weapon && f.weapon.kind==='melee'){ draw(CUBE, m4.modelYaw(f.x+fw[0]*0.5,1.05,f.z+fw[2]*0.5, 0.6,0.06,0.06, f.yaw), wcol, false, a); }
+    else if(f.weapon && f.weapon.kind==='bomb'){ draw(SPHERE, m4.model(f.x+fw[0]*0.4,1.05,f.z+fw[2]*0.4,0.14,0.14,0.14), wcol, false, a); }
+    else { draw(CUBE, m4.modelYaw(f.x+fw[0]*0.45,1.1,f.z+fw[2]*0.45, 0.5,0.09,0.09, f.yaw), wcol, false, a); }
+    // hp bar above head
+    if(!f.dead){ const r=clamp(f.hp/f.maxhp,0,1);
+      draw(CUBE, m4.model(f.x,1.95,f.z, 0.86,0.12,0.06), [0.05,0.05,0.08], true, 0.9);
+      draw(CUBE, m4.model(f.x-(0.8*(1-r))/2,1.95,f.z, Math.max(0.001,0.8*r),0.12,0.07), [1-0.9*r,0.25+0.7*r,0.3], true, 1); }
+  }
 
   // bullets
-  for(const b of rbullets){ draw(SPHERE, m4.model(b.x,b.y,b.z, b.r,b.r,b.r), b.col, true, 1); }
+  for(const b of rbullets){ draw(SPHERE, m4.model(b.x,b.y,b.z, b.r,b.r,b.r), b.col, true, b.sil?0.7:1); }
+  // bombs
+  for(const bo of rbombs){ const blink=(Math.sin(now/60)>0)?1:0.4;
+    draw(SPHERE, m4.model(bo.x,bo.y,bo.z, 0.22,0.22,0.22), [0.12,0.14,0.2], false, 1);
+    draw(SPHERE, m4.model(bo.x,bo.y+0.22,bo.z, 0.07,0.07,0.07), [1,0.4*blink,0.2*blink], true, 1); }
+  // slashes (melee arcs)
+  for(const s of slashes){ const a=clamp(s.life/s.max,0,1); const fw=fighterFwd(s.yaw);
+    draw(CUBE, m4.modelYaw(s.x,s.y,s.z, s.reach*1.1,0.05,0.12, s.yaw), s.col, true, a*0.8); }
   // particles
   for(const p of rparts){ const a=clamp(p.life/p.max,0,1); draw(SPHERE, m4.model(p.x,p.y,p.z, p.size,p.size,p.size), p.col, true, a); }
 
-  // held gun barrel: a short bar low in view, angled so its side is visible (reads as a weapon, not a cube)
-  if(equipped){ const gcol=hexRGB(gunColor(equipped));
-    const rdx=Math.cos(cam.yaw),rdz=Math.sin(cam.yaw); // camera right on XZ plane
-    // orthonormal up = normalize(cross(right, forward)), right=(rdx,0,rdz)
-    const Ux=-rdz*d[1], Uy=rdz*d[0]-rdx*d[2], Uz=rdx*d[1];
-    const ul=Math.hypot(Ux,Uy,Uz)||1; const U=[Ux/ul,Uy/ul,Uz/ul];
-    // barrel axis: mostly forward but toed inward-left so we see its side; length scales with bullet speed
-    let ax=d[0]*0.82 - rdx*0.35, ay=d[1]*0.82 - U[0]*0, az=d[2]*0.82 - rdz*0.35;
-    const al=Math.hypot(ax,ay,az)||1; ax/=al; ay/=al; az/=al;
-    const kick=muzzle>0?0.06:0;
-    const fwdOff=0.85, rightOff=0.30, downOff=0.30;
-    const gx=EYE[0]+d[0]*fwdOff+rdx*rightOff-U[0]*downOff, gy=EYE[1]+d[1]*fwdOff-U[1]*downOff, gz=EYE[2]+d[2]*fwdOff+rdz*rightOff-U[2]*downOff;
-    const bl=0.30-kick, bt=0.045;
-    // model: X along barrel axis, Y along U, Z along camera-right
-    const barrel=[ ax*bl,ay*bl,az*bl,0, U[0]*bt,U[1]*bt,U[2]*bt,0, rdx*bt,0,rdz*bt,0, gx,gy,gz,1 ];
-    draw(CUBE, barrel, gcol, false, 1);
-    const grip=[ ax*0.06,ay*0.06,az*0.06,0, U[0]*0.11,U[1]*0.11,U[2]*0.11,0, rdx*0.05,0,rdz*0.05,0, gx-ax*0.14-U[0]*0.09,gy-ay*0.14-U[1]*0.09,gz-az*0.14-U[2]*0.09,1 ];
-    draw(CUBE, grip, [0.30,0.34,0.46], false, 1);
-    if(muzzle>0){ draw(SPHERE, m4.model(gx+ax*0.26,gy+ay*0.26,gz+az*0.26, 0.085,0.085,0.085), [1,0.96,0.75], true, 1); }
+  // held viewmodel (guns only)
+  if(equipped && equipped.kind==='gun' && !player.dead){ const gcol=hexRGB(gunColor(equipped));
+    const rdx=Math.cos(cam.yaw),rdz=Math.sin(cam.yaw);
+    const Ux=-rdz*d[1], Uy=rdz*d[0]-rdx*d[2], Uz=rdx*d[1]; const ul=Math.hypot(Ux,Uy,Uz)||1; const U=[Ux/ul,Uy/ul,Uz/ul];
+    let ax=d[0]*0.82-rdx*0.35, ay=d[1]*0.82, az=d[2]*0.82-rdz*0.35; const al=Math.hypot(ax,ay,az)||1; ax/=al;ay/=al;az/=al;
+    const gx=EYE[0]+d[0]*0.85+rdx*0.30-U[0]*0.30, gy=EYE[1]+d[1]*0.85-U[1]*0.30, gz=EYE[2]+d[2]*0.85+rdz*0.30-U[2]*0.30;
+    const bl=0.30, bt=0.045;
+    draw(CUBE, [ax*bl,ay*bl,az*bl,0, U[0]*bt,U[1]*bt,U[2]*bt,0, rdx*bt,0,rdz*bt,0, gx,gy,gz,1], gcol, false, 1);
+    if(equipped.sil) draw(CUBE, [ax*0.12,ay*0.12,az*0.12,0, U[0]*0.05,U[1]*0.05,U[2]*0.05,0, rdx*0.05,0,rdz*0.05,0, gx+ax*0.34,gy+ay*0.34,gz+az*0.34,1], [0.2,0.22,0.3], false, 1);
+    if(muzzle>0 && !equipped.sil) draw(SPHERE, m4.model(gx+ax*0.32,gy+ay*0.32,gz+az*0.32, 0.09,0.09,0.09), [1,0.96,0.75], true, 1);
   }
 
-  // reload ring / muzzle pulse on crosshair
+  // crosshair reload/muzzle + hurt vignette
   const ch=document.getElementById('crosshair');
-  if(rReloadUntil>now){ ch.style.boxShadow='0 0 0 2px rgba(255,206,84,.9)'; ch.style.borderRadius='50%'; }
+  if(equipped&&equipped.kind==='gun'&&player.reloadUntil>now){ ch.style.boxShadow='0 0 0 2px rgba(255,206,84,.9)'; ch.style.borderRadius='50%'; }
   else if(muzzle>0){ ch.style.boxShadow='0 0 10px 3px rgba(255,235,150,.9)'; ch.style.borderRadius='0'; }
   else { ch.style.boxShadow='none'; ch.style.borderRadius='0'; }
+  document.getElementById('range').style.filter = hurtFlash>0 ? `brightness(1) drop-shadow(0 0 0 red)` : '';
+  const sb=document.getElementById('sandbox'); sb.style.boxShadow = hurtFlash>0 ? `inset 0 0 140px rgba(255,40,60,${Math.min(0.6,hurtFlash*1.6)})` : '';
 }
 
 // ---------- toast ----------

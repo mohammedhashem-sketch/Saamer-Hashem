@@ -46,22 +46,33 @@ Vercel, Cloudflare Pages, itch.io, or any web server and it works the same way.
 
 ## Bonus: Gun Forge 🔫
 
-`gun-game.html` is a second self-contained game in the same repo. **Build guns,
-fuse two of them together** to breed hybrids that combine their traits
-(explosive, homing, pierce, scatter, burst, incendiary, ricochet…), then
-**test-fire them in a true 3D first-person sandbox range** on floating targets
-with a live DPS readout. The range is rendered with inline WebGL (no external
-libraries — still one offline file). Traits play out in 3D: homing rounds curve
-to seek targets, pierce shots pass through, explosives blast an area, ricochets
-bounce off the walls. Open it directly, or reach it from the same host at
+`gun-game.html` is a second self-contained game in the same repo. It has two
+parts:
+
+**🔧 Workshop — craft weapons.** Start with guns, blades and a bomb. **Fuse two
+weapons of the same type** to breed hybrids that combine their traits (explosive,
+homing, pierce, scatter, burst, incendiary, ricochet…). Bolt a **🔇 silencer** or
+a **💥 boom-launcher** onto any gun to make combos like *Silenced Rifle* or
+*Rifle +Boom*. Weapons include **guns, knives, swords (Katana) and throwable
+bombs**.
+
+**⚔️ Arena — a true 3D first-person team battle.** Rendered with inline WebGL
+(no external libraries — still one offline file). Press **＋ Spawn** to drop
+fighters onto colored teams and hand them any weapon; they walk, aim, shoot,
+throw bombs and swing blades. Every team attacks every other team — **including
+you** — and the **last team standing wins** (no friendly fire). Hit **⚔️
+Auto-brawl** to pit Red vs Green and watch them fight. Weapon traits play out in
+3D: homing rounds curve after targets, pierce shots pass through, explosives and
+bombs blast an area, ricochets bounce off walls.
+
+- **Desktop:** click the arena to capture the mouse, **WASD** move, **mouse**
+  look/aim, **click/Space** fire, **R** reload, **G** bomb, **V** melee, **Esc**
+  release.
+- **Touch:** left stick moves, drag to look, **FIRE** shoots, plus 🔪 melee and
+  💣 bomb buttons.
+
+Your arsenal saves in the browser. Reach it from the same host at
 `.../gun-game.html`.
-
-- **Desktop:** click the range to capture the mouse, **WASD** move, **mouse**
-  look/aim, **click/Space** fire, **R** reload, **Esc** release.
-- **Touch:** left stick moves, drag the screen to look, **FIRE** button shoots
-  (with aim assist).
-
-Your arsenal saves in the browser.
 
 ## What's in the repo
 
