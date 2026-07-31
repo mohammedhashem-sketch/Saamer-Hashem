@@ -44,11 +44,22 @@ Once installed it launches fullscreen and works with no connection.
 Because it's just static files, you can drop the whole folder onto Netlify,
 Vercel, Cloudflare Pages, itch.io, or any web server and it works the same way.
 
+## Bonus: Gun Forge 🔫
+
+`gun-game.html` is a second self-contained game in the same repo. **Build guns,
+fuse two of them together** to breed hybrids that combine their traits
+(explosive, homing, pierce, scatter, burst, incendiary, ricochet…), then
+**test-fire them in a sandbox range** on target dummies with a live DPS readout.
+Open it directly, or reach it from the same host at `.../gun-game.html`. Works
+on desktop (WASD + mouse) and touch (on-screen stick + auto-aim). Your arsenal
+saves in the browser.
+
 ## What's in the repo
 
 | File | Purpose |
 | --- | --- |
 | `index.html` | The entire game (HTML + CSS + JS inlined). Runs by itself. |
+| `gun-game.html` | Gun Forge — the build-fuse-test gun sandbox. Also self-contained. |
 | `manifest.webmanifest` | PWA metadata (name, icons, colors, standalone display). |
 | `service-worker.js` | Offline caching so the app loads with no connection. |
 | `icon-192.png`, `icon-512.png` | Home-screen / install icons. |
