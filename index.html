@@ -505,6 +505,8 @@ const SEEDS = [
   { id:'fortune',   name:'Fortune Fruit', emoji:'💰', rarity:'supermythic', cost:0, grow:7200, sell:10000000, stockChance:0, cap:3 },
   // 🌺 Grand-challenge reward — the rarest plant, only from finishing every mission
   { id:'summerbloom', name:'Soomer Bloom', emoji:'🌺', rarity:'supermythic', cost:0, grow:7200, sell:10000000, stockChance:0, cap:3 },
+  // 🍨 Reward for the new very-hard Sundae missions — 3,000,000 per fruit
+  { id:'icecream',  name:'Ice Cream Sundae Fruit', emoji:'🍨', rarity:'supermythic', cost:0, grow:7200, sell:3000000, stockChance:0, cap:3 },
   // 🌞 Summer Harvest rewards (event only)
   { id:'cantaloupe',    name:'Cantaloupe',     emoji:'🍈', rarity:'legendary',   cost:0, grow:3600, sell:20000,    stockChance:0, cap:4 },
   { id:'turtleblossom', name:'Turtle Blossom', emoji:'🐢', rarity:'supermythic', cost:0, grow:7200, sell:15000000, stockChance:0, cap:3 },
@@ -533,6 +535,7 @@ const TRAITS = {
   windy:     { mult:7,  label:'Twisted',   emoji:'🌪️' },
   moonlit:   { mult:8,  label:'Moonlit',   emoji:'🌙' },
   golden:    { mult:10, label:'Golden',    emoji:'🌟' },
+  katana:    { mult:80, label:'Katana',    emoji:'🗡️' },
 };
 // ---- Weather / trait events (one is guaranteed every EVENT_CHECK_MS) ----
 const EVENT_CHECK_MS = 10*60*1000;   // a trait event happens every 10 minutes
@@ -544,7 +547,8 @@ const EVENTS = {
   heat:    { name:'Heatwave',     emoji:'🔥', weight:0.11, dur:50000, trait:'fiery',     traitChance:0.45, tint:'rgba(255,110,40,.16)' },
   thunder: { name:'Thunderstorm', emoji:'⛈️', weight:0.09, dur:40000, trait:'shocked',   traitChance:0.35, tint:'rgba(40,40,80,.30)' },
   night:   { name:'Night',        emoji:'🌙', weight:0.07, dur:45000, trait:'moonlit',   traitChance:0.30, tint:'rgba(20,20,70,.36)' },
-  rainbow: { name:'Rainbow',      emoji:'🌈', weight:0.1067, dur:30000, trait:'rainbow',   traitChance:0.40 },  // ~10% of all events
+  rainbow: { name:'Rainbow',      emoji:'🌈', weight:0.05647, dur:30000, trait:'rainbow',  traitChance:0.40 },  // ~5% of all events
+  katana:  { name:'Katana Valley',emoji:'🗡️', weight:0.11294, dur:35000, trait:'katana',  traitChance:0.35, tint:'rgba(120,20,30,.28)' },  // ~10% — ×80 fruit!
   tornado: { name:'Tornado',      emoji:'🌪️', weight:0.03, dur:35000, trait:'windy',     traitChance:0.30, tint:'rgba(130,130,120,.24)' },
   golden:  { name:'Golden Hour',  emoji:'🌟', weight:0.02, dur:25000, trait:'golden',    traitChance:0.30 },
 };
@@ -841,14 +845,22 @@ function normalizePlot(pos, saved){
 // Advance every plant: mature ripe fruit, then keep empty slots regrowing.
 function updatePlots(){
   const t = now();
+  const ev=activeEvent(), e=ev?EVENTS[ev.type]:null, eid=ev?ev.until:0;
   for(const pl of state.plots){
     if(!pl.seedId) continue;
     const cap = SEED_MAP[pl.seedId].cap;
     if(!pl.timers) pl.timers=[];
+    if(!pl.traits) pl.traits=[];
     for(let i=pl.timers.length-1;i>=0;i--){
       if(pl.timers[i].at<=t){ pl.fruits=(pl.fruits||0)+1; pl.timers.splice(i,1); }
     }
     if(pl.fruits>cap) pl.fruits=cap;
+    // Weather-event traits SOAK INTO ripe fruit and STAY until harvested (even
+    // after the event ends). A plant can collect several traits over time.
+    if(e && pl.fruits>0 && pl.evSeen!==eid){
+      pl.evSeen=eid;
+      if(Math.random()<e.traitChance && !pl.traits.includes(e.trait)) pl.traits.push(e.trait);
+    }
     // any slot that is neither ripe nor already regrowing starts a 5-min regrow
     const rg = basicActive() ? REGROW_MS/2 : REGROW_MS;   // basic sprinkler = 2× faster regrow
     while((pl.fruits||0)+pl.timers.length < cap){ pl.timers.push({at:t+rg, dur:rg}); }
@@ -1026,7 +1038,9 @@ function handlePlot(i){
     const s=SEED_MAP[pl.seedId];
     if(pl.fruits>0){
       const sp=sprinklerActive();
-      const traits = rollTraits();             // event/bonus traits stack
+      // The fruit carries every trait the plant soaked up from events (they stay
+      // after the event ends), plus a small chance of one bonus trait → multi-trait.
+      const traits = rollTraits(pl);
       const weight = rollWeight(sp?sp.weightBonus:0);   // sprinklers make fruit heavier
       const mut    = rollMutation(sp);         // sprinklers can make Gold / Rainbow fruit
       const take = s.oneTime ? pl.fruits : 1;  // commons give everything once, then vanish
@@ -1038,7 +1052,12 @@ function handlePlot(i){
       state.stats.harvested=(state.stats.harvested||0)+take;
       if(traits.length) state.stats.traitCrops=(state.stats.traitCrops||0)+take;
       if(traits.includes('rainbow')) state.stats.rainbow=(state.stats.rainbow||0)+take;
+      if(mut) state.stats.golden=(state.stats.golden||0)+take;
+      if(weight==='giant') state.stats.giant=(state.stats.giant||0)+take;
+      if(mut==='rainbow'||traits.includes('rainbow')||traits.includes('katana')) burstFx(pl.x,pl.y,['#ff4d7d','#ffd54a','#5be08a','#4aa3ff','#b56cff'],20,3);
+      else if(mut==='gold') burstFx(pl.x,pl.y,['#ffe27a','#ffd54a','#fff3b0'],14,2.4);
       pl.fruits -= take;
+      if(pl.fruits<=0){ pl.traits=[]; pl.evSeen=0; }   // regrown fruit starts trait-free
       const wl=WEIGHT_MAP[weight];
       const tag = mutTag(mut)+(weight!=='medium'?wl.label+' ':'')+(traits.length?traits.map(t=>TRAITS[t].emoji).join('')+' ':'');
       if(mut || traits.length>=2 || traits.some(t=>TRAITS[t].mult>=5) || wl.idx>=4)
@@ -1099,20 +1118,19 @@ function maybeEvent(){
     for(const k of keys){ r-=EVENTS[k].weight; if(r<=0){ started=k; break; } }
     const e=EVENTS[started];
     state.event={ type:started, until: now()+e.dur };
-    log(`${e.emoji} A <b>${e.name}</b> event started! Harvested fruit can become ${TRAITS[e.trait].emoji} ${TRAITS[e.trait].label} (×${TRAITS[e.trait].mult}).`);
-    notify(`${e.emoji} <b>${e.name}!</b> Harvest now for ${TRAITS[e.trait].emoji} ${TRAITS[e.trait].label} fruit (×${TRAITS[e.trait].mult})!`);
+    log(`${e.emoji} A <b>${e.name}</b> event started! Ripe fruit soaks up ${TRAITS[e.trait].emoji} ${TRAITS[e.trait].label} (×${TRAITS[e.trait].mult}) — it stays even after the event ends.`);
+    notify(`${e.emoji} <b>${e.name}!</b> Ripe fruit becomes ${TRAITS[e.trait].emoji} ${TRAITS[e.trait].label} — ×${TRAITS[e.trait].mult} value!`);
   }
 }
 // Decide the traits of a just-harvested fruit — a fruit can have SEVERAL,
 // and their multipliers all stack together.
 const BONUS_TRAITS = ['wet','sunkissed','frozen'];  // modest extra sparkle (Slippery removed)
-function rollTraits(){
-  const traits=[];
-  const ev=activeEvent();
-  if(ev){ const e=EVENTS[ev.type]; if(Math.random()<e.traitChance) traits.push(e.trait); }
-  // small chance of an extra bonus trait so fruits can stack multiple
-  if(Math.random()<0.08) traits.push(BONUS_TRAITS[Math.floor(Math.random()*BONUS_TRAITS.length)]);
-  return [...new Set(traits)];   // no duplicates (sprinklers now boost weight, not traits)
+// A fruit keeps every trait the plant soaked up from events, plus a small chance
+// of one extra bonus trait — so fruit can stack MULTIPLE traits.
+function rollTraits(pl){
+  const traits = pl && pl.traits ? pl.traits.slice() : [];
+  if(Math.random()<0.15) traits.push(BONUS_TRAITS[Math.floor(Math.random()*BONUS_TRAITS.length)]);
+  return [...new Set(traits)];
 }
 // Build the packed crop key from a harvest roll.
 function makeCropKey(id, traits, weight, mut){
@@ -1643,6 +1661,9 @@ function draw(){
   path([[WORLD_W*0.42,WORLD_H*0.55],[BUILDINGS[1].door.x,BUILDINGS[1].door.y]]);
   path([[WORLD_W*0.42,WORLD_H*0.55],[BUILDINGS[2].door.x,BUILDINGS[2].door.y]]);
 
+  // ambient floating pollen/sparkles (gentle background motion)
+  drawAmbient();
+
   // plots
   const near = nearestInteractable();
   state.plots.forEach((pl,i)=>drawPlot(pl,i, near&&near.type==='plot'&&near.index===i));
@@ -1792,6 +1813,35 @@ function drawCrop(g, id, cx, cy, U, ph, mut){
       const rc=['#ff4d7d','#ff9f38','#ffd54a','#5be08a','#4aa3ff','#b56cff']; for(let i=0;i<6;i++){ g.save(); g.rotate(i*2*Math.PI/6); g.fillStyle=rc[i]; g.beginPath(); g.ellipse(0,-10*U,5*U,9*U,0,0,7); g.fill(); g.restore(); } _circ(g,0,0,3.5*U,'#fff'); break; }
     case 'fortune':
       _circ(g,0,2*U,11*U,'#ffcf3a'); _circ(g,0,2*U,8*U,'#ffe27a'); g.fillStyle='#c9962a'; drawStar(g,0,2*U,5*U,5); _shine(g,-3*U,-2*U,10*U); break;
+    case 'cantaloupe':
+      _circ(g,0,2*U,12*U,'#d9c17a');                 // tan melon
+      g.strokeStyle='#b39a52'; g.lineWidth=1.2*U; for(let i=0;i<7;i++){ const a=i/7*Math.PI*2; g.beginPath(); g.arc(0,2*U,12*U,a,a+0.35); g.stroke(); }
+      g.strokeStyle='rgba(255,255,255,.35)'; g.lineWidth=U; for(let i=0;i<5;i++){ g.beginPath(); g.ellipse(0,2*U,3*U+i*2*U,11*U,0,0.6,2.5); g.stroke(); }
+      _shine(g,-4*U,-3*U,10*U); g.fillStyle='#5aa84a'; g.fillRect(-1.5*U,-11*U,3*U,4*U); break;
+    case 'turtleblossom': {
+      // a turtle whose shell is a blooming flower
+      g.fillStyle='#4bb06a'; g.beginPath(); g.ellipse(0,7*U,4*U,3*U,0,0,7); g.fill();          // head
+      _circ(g,0,7*U,3.2*U,'#57c078');
+      g.fillStyle='#3f9a5a'; for(const dx of [-9,-6,9,6]){ g.beginPath(); g.ellipse(dx*U,3*U,2.4*U,3.4*U,dx<0?0.5:-0.5,0,7); g.fill(); }  // legs
+      _circ(g,0,0,9*U,'#2f7a48');                     // shell base
+      // flower on the shell
+      for(let i=0;i<6;i++){ g.save(); g.rotate(i*2*Math.PI/6); g.fillStyle='#ff6fb0'; g.beginPath(); g.ellipse(0,-6*U,3*U,5*U,0,0,7); g.fill(); g.restore(); }
+      _circ(g,0,0,3*U,'#ffd54a');
+      // eyes
+      _circ(g,-1.6*U,6.4*U,0.7*U,'#183'); _circ(g,1.6*U,6.4*U,0.7*U,'#183'); break; }
+    case 'icecream': {
+      // sundae glass
+      g.fillStyle='rgba(255,255,255,.35)'; g.beginPath(); g.moveTo(-6*U,4*U); g.lineTo(6*U,4*U); g.lineTo(4*U,14*U); g.lineTo(-4*U,14*U); g.closePath(); g.fill();
+      g.strokeStyle='rgba(255,255,255,.6)'; g.lineWidth=U; g.stroke();
+      // three scoops
+      _circ(g,-3.5*U,1*U,4.5*U,'#ffd9e6');   // strawberry
+      _circ(g,3.5*U,1*U,4.5*U,'#fff3c4');    // vanilla
+      _circ(g,0,-4*U,5*U,'#c98a5a');         // chocolate
+      // drizzle
+      g.strokeStyle='#8a4a24'; g.lineWidth=1.4*U; g.beginPath(); g.moveTo(-3*U,-4*U); g.quadraticCurveTo(0,-1*U,3*U,-3*U); g.stroke();
+      // cherry
+      _circ(g,0,-9*U,2.4*U,'#e63b4e'); g.strokeStyle='#3f9a4a'; g.lineWidth=U; g.beginPath(); g.moveTo(0,-11*U); g.lineTo(2*U,-14*U); g.stroke();
+      _shine(g,-2*U,-6*U,5*U); break; }
     case 'summerbloom':
       for(let i=0;i<5;i++){ g.save(); g.rotate(i*2*Math.PI/5); g.fillStyle='#ff5d8f'; g.beginPath(); g.ellipse(0,-9*U,6*U,10*U,0,0,7); g.fill(); g.fillStyle='rgba(255,255,255,.25)'; g.beginPath(); g.ellipse(0,-11*U,3*U,4*U,0,0,7); g.fill(); g.restore(); }
       _circ(g,0,0,4*U,'#ffd54a'); g.strokeStyle='#ffb0c8'; g.lineWidth=1.5*U; g.beginPath(); g.moveTo(0,0); g.lineTo(0,-8*U); g.stroke(); _circ(g,0,-8*U,1.5*U,'#ffe08a'); break;
@@ -1866,9 +1916,15 @@ function drawPlot(pl,i,active){
       ctx.save(); ctx.translate(pl.x, pl.y-2+bob); ctx.scale(pulse,pulse);
       drawCrop(ctx, s.id, 0, 0, 1.0, swayPh);
       ctx.restore();
-      // sparkles for the fanciest crops
-      if(RARITY_ORDER[s.rarity]>=4) drawSparkles(ctx, pl.x, pl.y, TS*0.5, now()/220,
-        s.rarity==='supermythic'?'#ffd54a':(s.rarity==='exclusive'?'#5be08a':'#ff9bdf'));
+      // sparkles for the fanciest crops (or for any plant carrying event traits)
+      if(RARITY_ORDER[s.rarity]>=4 || (pl.traits&&pl.traits.length)) drawSparkles(ctx, pl.x, pl.y, TS*0.5, now()/220,
+        (pl.traits&&pl.traits.includes('rainbow'))?'#ff6fd8':(pl.traits&&pl.traits.includes('katana'))?'#ff5d5d':s.rarity==='supermythic'?'#ffd54a':'#ff9bdf');
+      // trait badges — show every trait this plant has soaked up (multi-trait!)
+      if(pl.traits && pl.traits.length){
+        ctx.font='13px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+        const tw=pl.traits.slice(0,4); const bw=tw.length*15;
+        tw.forEach((tr,ti)=>ctx.fillText(TRAITS[tr]?TRAITS[tr].emoji:'', pl.x-bw/2+8+ti*15, pl.y-TS*0.5));
+      }
       // gold ready ring
       ctx.strokeStyle='#ffd54a'; ctx.lineWidth=3;
       ctx.beginPath(); ctx.arc(pl.x, pl.y, TS*0.55, 0, Math.PI*2); ctx.stroke();
@@ -2035,6 +2091,19 @@ function drawGearShop(b,cx){
   ctx.fillStyle='#ffd54a'; ctx.save(); ctx.translate(b.x+16,b.y+b.h*0.55); ctx.rotate(now()/900); for(let i=0;i<8;i++){ ctx.rotate(Math.PI/4); ctx.fillRect(-2,-9,4,5); } ctx.beginPath(); ctx.arc(0,0,6,0,7); ctx.fill(); ctx.fillStyle='#2f4a5c'; ctx.beginPath(); ctx.arc(0,0,2.5,0,7); ctx.fill(); ctx.restore();
   drawCrop(ctx,'sunboom',b.x+b.w-16,b.y+b.h*0.55,0.5,now()/600);
   _banner(cx,b.y+b.h*0.30,50,'GEAR','#2f4a5c');
+}
+// Gentle floating pollen motes drifting across the view (ambient animation).
+function drawAmbient(){
+  const t=now()/1000, span=VW+80, hspan=Math.max(1,VH-40);
+  ctx.save();
+  for(let i=0;i<18;i++){
+    const bx=cam.x-40 + ((i*211.3 + t*(7+(i%5)*4)) % span);
+    const by=cam.y+20 + ((i*167.7) % hspan) + Math.sin(t*0.7+i*1.3)*16;
+    ctx.globalAlpha=Math.max(0,0.22+0.2*Math.sin(t*1.3+i));
+    ctx.fillStyle = i%4===0?'#fff7c8':'#d8f0c0';
+    ctx.beginPath(); ctx.arc(bx,by,1.4+(i%3),0,7); ctx.fill();
+  }
+  ctx.restore();
 }
 // ---- Pop / floating-text effects (juicy 3D-style animations) ----
 let fx=[];
@@ -2335,6 +2404,17 @@ const MISSIONS = [
   { id:'master', ico:'🏆', name:'Master Farmer', desc:'Reach Level 20 AND expand your garden 3 times.',
     prog:s=>({cur:(levelFromXp(s.xp)>=20?1:0)+((s.expansions||0)>=3?1:0),goal:2}),
     reward:{coins:1000000, xp:30000}, rewardText:'⭐ 30,000 XP for levels + 1,000,000 🪙' },
+  // 🔥 New VERY HARD missions — finish them all for the Ice Cream Sundae Fruit
+  { id:'titan', hard:true, ico:'🌾', name:'Harvest Titan', desc:'Harvest 2,000 crops in total.',
+    prog:s=>({cur:Math.min(s.stats.harvested||0,2000),goal:2000}), reward:{xp:40000}, rewardText:'⭐ 40,000 XP' },
+  { id:'tycoon', hard:true, ico:'💰', name:'Coin Tycoon', desc:'Earn 100,000,000 coins from selling crops.',
+    prog:s=>({cur:Math.min(s.stats.coinsEarned||0,1e8),goal:1e8}), reward:{xp:60000}, rewardText:'⭐ 60,000 XP' },
+  { id:'giantm', hard:true, ico:'⚖️', name:'Giant Grower', desc:'Harvest 50 GIANT-weight fruit.',
+    prog:s=>({cur:Math.min(s.stats.giant||0,50),goal:50}), reward:{xp:50000}, rewardText:'⭐ 50,000 XP' },
+  { id:'shiny', hard:true, ico:'🟡', name:'Shiny Hunter', desc:'Harvest 30 Gold or Rainbow fruit (from sprinklers).',
+    prog:s=>({cur:Math.min(s.stats.golden||0,30),goal:30}), reward:{xp:50000}, rewardText:'⭐ 50,000 XP' },
+  { id:'overlord', hard:true, ico:'👑', name:'Farm Overlord', desc:'Reach Level 40 AND fully expand your garden.',
+    prog:s=>({cur:(levelFromXp(s.xp)>=40?1:0)+(gardenMaxed()?1:0),goal:2}), reward:{coins:5000000, xp:80000}, rewardText:'⭐ 80,000 XP + 5,000,000 🪙' },
 ];
 // 🌺 GRAND challenge — finish all 5 missions within one week to earn the Soomer Bloom
 const BLOOM_DUR = 7*24*60*60*1000;   // one week
@@ -2342,18 +2422,27 @@ const BLOOM = { id:'summerbloom', ico:'🌺', name:'Soomer Bloom Challenge',
   desc:'Complete ALL 5 missions above to earn the Soomer Bloom — the rarest plant of all. But hurry: it only blooms for one week!',
   reward:{ seeds:{summerbloom:1}, xp:50000 },
   rewardText:'🌺 Soomer Bloom seed — the rarest plant, sells 10,000,000 each! + 50,000 XP' };
-function bloomClaimedCount(){ return MISSIONS.filter(m=>state.missions[m.id]==='claimed').length; }
+const baseMissions=()=>MISSIONS.filter(m=>!m.hard);
+const hardMissions=()=>MISSIONS.filter(m=>m.hard);
+function bloomClaimedCount(){ return baseMissions().filter(m=>state.missions[m.id]==='claimed').length; }
 function bloomExpired(){ return state.missions.summerbloom!=='claimed' && now()>=(state.bloomDeadline||0); }
+function sundaeClaimedCount(){ return hardMissions().filter(m=>state.missions[m.id]==='claimed').length; }
+// 🍨 GRAND challenge — finish every very-hard mission for the Ice Cream Sundae Fruit
+const SUNDAE = { id:'icecream', ico:'🍨', name:'Sundae Challenge',
+  desc:'Complete ALL the very-hard 🔥 missions below to earn the Ice Cream Sundae Fruit — worth 3,000,000 per fruit!',
+  reward:{ seeds:{icecream:1}, xp:80000 },
+  rewardText:'🍨 Ice Cream Sundae Fruit seed — 3,000,000 each! + 80,000 XP' };
 function openMissions(){ if(!state.setupDone) return; renderMissions(); show('missionsOverlay'); }
 function fmtMissionProg(m,p){
   if(m.id==='baron') return `${Math.floor(p.cur).toLocaleString()} / 5,000,000 coins`;
+  if(m.id==='tycoon') return `${Math.floor(p.cur).toLocaleString()} / 100,000,000 coins`;
   if(m.id==='rainbow') return p.cur>=1?'Found it! 🌈':'Not found yet';
-  if(m.id==='master') return `${p.cur} / 2 goals done`;
-  return `${p.cur} / ${p.goal}`;
+  if(m.id==='master'||m.id==='overlord') return `${p.cur} / 2 goals done`;
+  return `${p.cur.toLocaleString()} / ${p.goal.toLocaleString()}`;
 }
 function bloomCard(){
   const claimed=state.missions.summerbloom==='claimed';
-  const n=bloomClaimedCount(), goal=MISSIONS.length;
+  const n=bloomClaimedCount(), goal=baseMissions().length;
   const expired=bloomExpired();
   const done=n>=goal && !expired;
   const pct=Math.min(100, Math.round(n/goal*100));
@@ -2372,23 +2461,49 @@ function bloomCard(){
     <div class="mprog"><span>${n} / ${goal} missions done</span><span>${timeLine}</span></div>
     ${btn}</div>`;
 }
+function sundaeCard(){
+  const claimed=state.missions.icecream==='claimed';
+  const n=sundaeClaimedCount(), goal=hardMissions().length, done=n>=goal;
+  const pct=Math.min(100, Math.round(n/goal*100));
+  const btn = claimed ? '' : `<button class="btn mclaim" id="claimSundae" ${done?'':'disabled'}>${done?'🍨 Claim Ice Cream Sundae Fruit!':'Finish all '+goal+' very-hard missions'}</button>`;
+  return `<div class="mcard${claimed?' done':''}" style="border-color:#ff8ac4;background:linear-gradient(135deg,rgba(255,138,196,.16),rgba(120,200,255,.12))">
+    <div class="mtop"><div class="mico">🍨</div><div style="flex:1"><div class="mnm">${SUNDAE.name}</div><div class="mds">${SUNDAE.desc}</div></div>${claimed?'<div class="mdone-tag">✓ Claimed</div>':''}</div>
+    <div class="mrw">🎁 ${SUNDAE.rewardText}</div>
+    <div class="mbar"><i style="width:${pct}%;background:linear-gradient(90deg,#ff8ac4,#5bd0ff)"></i></div>
+    <div class="mprog"><span>${n} / ${goal} hard missions done</span><span>${pct}%</span></div>
+    ${btn}</div>`;
+}
 function renderMissions(){
   const el=document.getElementById('missionsList'); el.innerHTML='';
-  // grand challenge first
-  const grand=document.createElement('div'); grand.innerHTML=bloomCard(); el.appendChild(grand.firstElementChild);
+  // grand challenges first
+  const g1=document.createElement('div'); g1.innerHTML=bloomCard(); el.appendChild(g1.firstElementChild);
   const cb=document.getElementById('claimBloom'); if(cb) cb.onclick=claimBloom;
+  const g2=document.createElement('div'); g2.innerHTML=sundaeCard(); el.appendChild(g2.firstElementChild);
+  const cs=document.getElementById('claimSundae'); if(cs) cs.onclick=claimSundae;
   MISSIONS.forEach(m=>{
     const p=m.prog(state); const done=p.cur>=p.goal; const claimed=state.missions[m.id]==='claimed';
     const pct=Math.min(100, Math.round(p.cur/p.goal*100));
     const d=document.createElement('div'); d.className='mcard'+(claimed?' done':'');
-    d.innerHTML=`<div class="mtop"><div class="mico">${m.ico}</div><div style="flex:1"><div class="mnm">${m.name}</div><div class="mds">${m.desc}</div></div>${claimed?'<div class="mdone-tag">✓ Claimed</div>':''}</div>
+    const nm=(m.hard?'🔥 ':'')+m.name;
+    d.innerHTML=`<div class="mtop"><div class="mico">${m.ico}</div><div style="flex:1"><div class="mnm">${nm}</div><div class="mds">${m.desc}</div></div>${claimed?'<div class="mdone-tag">✓ Claimed</div>':''}</div>
       <div class="mrw">🎁 ${m.rewardText}</div>
-      <div class="mbar"><i style="width:${pct}%"></i></div>
+      <div class="mbar"><i style="width:${pct}%${m.hard?';background:linear-gradient(90deg,#ff8ac4,#5bd0ff)':''}"></i></div>
       <div class="mprog"><span>${fmtMissionProg(m,p)}</span><span>${pct}%</span></div>
       ${claimed?'':`<button class="btn mclaim" ${done?'':'disabled'}>${done?'🎁 Claim reward':'Keep going!'}</button>`}`;
     const btn=d.querySelector('.mclaim'); if(btn) btn.onclick=()=>claimMission(m.id);
     el.appendChild(d);
   });
+}
+function claimSundae(){
+  if(state.missions.icecream==='claimed') return;
+  if(sundaeClaimedCount()<hardMissions().length){ toast('Finish all the very-hard 🔥 missions first!'); return; }
+  state.missions.icecream='claimed';
+  giveSeed('icecream',1); state.xp+=SUNDAE.reward.xp;
+  toast('🍨 You earned the Ice Cream Sundae Fruit!');
+  log(`🍨 Completed the <b>Sundae Challenge</b> — got 1× 🍨 Ice Cream Sundae Fruit + ${SUNDAE.reward.xp} XP`);
+  notify('🍨 <b>Sundae Challenge complete!</b> The Ice Cream Sundae Fruit is yours! 🎉');
+  for(let i=0;i<4;i++) confettiFx(cam.x+VW*(0.25+i*0.17), cam.y+90);
+  save(); renderMissions(); renderHUD(); renderHotbar();
 }
 function claimBloom(){
   if(state.missions.summerbloom==='claimed') return;
