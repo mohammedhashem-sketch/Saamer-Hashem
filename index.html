@@ -791,6 +791,7 @@ let state = load() || {
   shop:{},
   gearShop:{},        // gear stock (itemId -> qty)
   lastRestock:Date.now(),
+  restockCount:0,     // paid restocks so far — the price doubles each time
   selectedSeed:null,
   tool:'none',        // 'none' | 'shovel' | 'can' | 'trowel'
   carrying:null,      // a plant held by the trowel, waiting to be replanted
@@ -1287,11 +1288,14 @@ function buy(id){
   log(`Bought a <b>${s.name}</b> seed for ${s.cost} 🪙`);
   renderShop(); renderHUD(); renderHotbar();
 }
-const RESTOCK_COST = 100000;   // coins to force a restock
+// Force-restock cost starts at 100k and DOUBLES every time you pay for a restock.
+const RESTOCK_BASE = 100000;
+function restockCost(){ return RESTOCK_BASE * Math.pow(2, state.restockCount||0); }
 function forceRestock(){
-  if(state.coins < RESTOCK_COST){ toast(`Need ${RESTOCK_COST.toLocaleString()} coins to restock.`); return; }
-  state.coins-=RESTOCK_COST; rollStock();
-  log(`Paid ${RESTOCK_COST.toLocaleString()} 🪙 to restock the Seed Shop.`);
+  const cost=restockCost();
+  if(state.coins < cost){ toast(`Need ${cost.toLocaleString()} coins to restock.`); return; }
+  state.coins-=cost; state.restockCount=(state.restockCount||0)+1; rollStock();
+  log(`Paid ${cost.toLocaleString()} 🪙 to restock the Seed Shop (next: ${restockCost().toLocaleString()} 🪙).`);
   renderShop(); renderHUD();
 }
 // ---- Garden expansion: starts at 100M, ×5 more expensive each time ----
@@ -1525,6 +1529,8 @@ function closeAll(){ document.querySelectorAll('.overlay.show').forEach(o=>{ if(
 document.querySelectorAll('[data-close]').forEach(x=>x.onclick=()=>document.getElementById(x.dataset.close).classList.remove('show'));
 
 function renderShop(){
+  const rb=document.getElementById('forceRestock');
+  if(rb){ const c=restockCost(); rb.textContent=`🔄 Restock Now (${c.toLocaleString()} 🪙)`; rb.disabled=state.coins<c; }
   const el=document.getElementById('shopList'); el.innerHTML='';
   SEEDS.filter(s=>s.stockChance>0).sort((a,b)=>RARITY_ORDER[a.rarity]-RARITY_ORDER[b.rarity]).forEach(s=>{
     const inStock=state.shop[s.id]>0;
@@ -2267,7 +2273,6 @@ function importCode(code){
   if(!d.bag || typeof d.bag!=='object') d.bag={};
   if(!d.missions || typeof d.missions!=='object') d.missions={};
   if(!d.stats || typeof d.stats!=='object') d.stats={harvested:0,traitCrops:0,rainbow:0,coinsEarned:0};
-  if(typeof d.bloomDeadline!=='number' || !d.bloomDeadline) d.bloomDeadline=now()+BLOOM_DUR;
   logs = Array.isArray(d.logs)? d.logs : [];
   state = d;
   refreshCharURL();
@@ -2416,16 +2421,7 @@ const MISSIONS = [
   { id:'overlord', hard:true, ico:'👑', name:'Farm Overlord', desc:'Reach Level 40 AND fully expand your garden.',
     prog:s=>({cur:(levelFromXp(s.xp)>=40?1:0)+(gardenMaxed()?1:0),goal:2}), reward:{coins:5000000, xp:80000}, rewardText:'⭐ 80,000 XP + 5,000,000 🪙' },
 ];
-// 🌺 GRAND challenge — finish all 5 missions within one week to earn the Soomer Bloom
-const BLOOM_DUR = 7*24*60*60*1000;   // one week
-const BLOOM = { id:'summerbloom', ico:'🌺', name:'Soomer Bloom Challenge',
-  desc:'Complete ALL 5 missions above to earn the Soomer Bloom — the rarest plant of all. But hurry: it only blooms for one week!',
-  reward:{ seeds:{summerbloom:1}, xp:50000 },
-  rewardText:'🌺 Soomer Bloom seed — the rarest plant, sells 10,000,000 each! + 50,000 XP' };
-const baseMissions=()=>MISSIONS.filter(m=>!m.hard);
 const hardMissions=()=>MISSIONS.filter(m=>m.hard);
-function bloomClaimedCount(){ return baseMissions().filter(m=>state.missions[m.id]==='claimed').length; }
-function bloomExpired(){ return state.missions.summerbloom!=='claimed' && now()>=(state.bloomDeadline||0); }
 function sundaeClaimedCount(){ return hardMissions().filter(m=>state.missions[m.id]==='claimed').length; }
 // 🍨 GRAND challenge — finish every very-hard mission for the Ice Cream Sundae Fruit
 const SUNDAE = { id:'icecream', ico:'🍨', name:'Sundae Challenge',
@@ -2439,27 +2435,6 @@ function fmtMissionProg(m,p){
   if(m.id==='rainbow') return p.cur>=1?'Found it! 🌈':'Not found yet';
   if(m.id==='master'||m.id==='overlord') return `${p.cur} / 2 goals done`;
   return `${p.cur.toLocaleString()} / ${p.goal.toLocaleString()}`;
-}
-function bloomCard(){
-  const claimed=state.missions.summerbloom==='claimed';
-  const n=bloomClaimedCount(), goal=baseMissions().length;
-  const expired=bloomExpired();
-  const done=n>=goal && !expired;
-  const pct=Math.min(100, Math.round(n/goal*100));
-  const left=(state.bloomDeadline-now())/1000;
-  let timeLine;
-  if(claimed) timeLine='<span class="mdone-tag">✓ Claimed</span>';
-  else if(expired) timeLine='<span style="color:#ff6b6b;font-weight:800">❌ Expired</span>';
-  else timeLine=`⏳ Expires in <b id="bloomLeft">${fmtTime(left)}</b>`;
-  const btn = claimed ? '' :
-    (expired ? '<button class="btn mclaim" disabled>😢 Challenge expired</button>'
-             : `<button class="btn mclaim" id="claimBloom" ${done?'':'disabled'}>${done?'🌺 Claim Soomer Bloom!':'Finish all 5 missions'}</button>`);
-  return `<div class="mcard bloom${claimed?' done':''}" style="border-color:#ff4d7d;background:linear-gradient(135deg,rgba(255,77,125,.16),rgba(181,108,255,.14))">
-    <div class="mtop"><div class="mico">🌺</div><div style="flex:1"><div class="mnm">${BLOOM.name}</div><div class="mds">${BLOOM.desc}</div></div></div>
-    <div class="mrw">🎁 ${BLOOM.rewardText}</div>
-    <div class="mbar"><i style="width:${pct}%;background:linear-gradient(90deg,#ff4d7d,#b56cff)"></i></div>
-    <div class="mprog"><span>${n} / ${goal} missions done</span><span>${timeLine}</span></div>
-    ${btn}</div>`;
 }
 function sundaeCard(){
   const claimed=state.missions.icecream==='claimed';
@@ -2475,9 +2450,7 @@ function sundaeCard(){
 }
 function renderMissions(){
   const el=document.getElementById('missionsList'); el.innerHTML='';
-  // grand challenges first
-  const g1=document.createElement('div'); g1.innerHTML=bloomCard(); el.appendChild(g1.firstElementChild);
-  const cb=document.getElementById('claimBloom'); if(cb) cb.onclick=claimBloom;
+  // grand challenge first
   const g2=document.createElement('div'); g2.innerHTML=sundaeCard(); el.appendChild(g2.firstElementChild);
   const cs=document.getElementById('claimSundae'); if(cs) cs.onclick=claimSundae;
   MISSIONS.forEach(m=>{
@@ -2503,17 +2476,6 @@ function claimSundae(){
   log(`🍨 Completed the <b>Sundae Challenge</b> — got 1× 🍨 Ice Cream Sundae Fruit + ${SUNDAE.reward.xp} XP`);
   notify('🍨 <b>Sundae Challenge complete!</b> The Ice Cream Sundae Fruit is yours! 🎉');
   for(let i=0;i<4;i++) confettiFx(cam.x+VW*(0.25+i*0.17), cam.y+90);
-  save(); renderMissions(); renderHUD(); renderHotbar();
-}
-function claimBloom(){
-  if(state.missions.summerbloom==='claimed') return;
-  if(bloomExpired()){ toast('😢 The Soomer Bloom challenge has expired.'); return; }
-  if(bloomClaimedCount()<MISSIONS.length){ toast('Finish all 5 missions first!'); return; }
-  state.missions.summerbloom='claimed';
-  giveSeed('summerbloom',1); state.xp+=BLOOM.reward.xp;
-  toast('🌺 You earned the Soomer Bloom!');
-  log(`🌺 Completed the <b>Soomer Bloom Challenge</b> — got 1× 🌺 Soomer Bloom + ${BLOOM.reward.xp} XP`);
-  notify('🌺 <b>Soomer Bloom Challenge complete!</b> The rarest plant is yours! 🎉');
   save(); renderMissions(); renderHUD(); renderHotbar();
 }
 function claimMission(id){
@@ -2609,7 +2571,6 @@ if(!state.player.char) state.player.char=defaultChar(); else state.player.char=m
 if(!state.bag || typeof state.bag!=='object') state.bag={};
 if(!state.missions || typeof state.missions!=='object') state.missions={};
 if(!state.stats || typeof state.stats!=='object') state.stats={harvested:0,traitCrops:0,rainbow:0,coinsEarned:0};
-if(typeof state.bloomDeadline!=='number' || !state.bloomDeadline) state.bloomDeadline = now()+BLOOM_DUR;  // 1-week Soomer Bloom challenge
 refreshCharURL();
 buildSetup();
 if(!state.setupDone) show('setupOverlay');
@@ -2626,9 +2587,6 @@ setInterval(()=>{
   const rem=Math.max(0,Math.ceil((RESTOCK_MS-(now()-state.lastRestock))/1000));
   const mm=Math.floor(rem/60), ss=String(rem%60).padStart(2,'0');
   const el=document.getElementById('restockIn'); if(el) el.textContent=`${mm}:${ss}`;
-  // live Soomer Bloom challenge countdown (while the missions screen is open)
-  const bl=document.getElementById('bloomLeft');
-  if(bl){ if(bloomExpired()) renderMissions(); else bl.textContent=fmtTime((state.bloomDeadline-now())/1000); }
   // live sprinkler HUD chip
   const a=sprinklerActive(); const sprEl=document.getElementById('hudSpr');
   if(a){ const g=GEAR_MAP[a.tier]; sprEl.style.display='flex'; sprEl.textContent=`${g.emoji} ${fmtTime((a.until-now())/1000)}`; sprWasActive=true; }
